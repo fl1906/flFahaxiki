@@ -1,0 +1,106 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 用户模型
+model User {
+  id           String    @id @default(cuid())
+  username     String?   @unique
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  nickname     String?
+  avatarUrl    String?   @map("avatar_url")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // 关联关系
+  aiModelConfigs   AIModelConfig[]
+  conversations    Conversation[]
+
+  @@map("users")
+}
+
+// AI模型配置
+model AIModelConfig {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  modelName   String   @map("model_name")
+  model       String?  // API模型名称，用于调用AI API
+  apiEndpoint String   @map("api_endpoint")
+  apiKey      String?  @map("api_key")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // 关联关系
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@map("ai_model_configs")
+}
+
+// 对话
+model Conversation {
+  id                   String   @id @default(cuid())
+  userId               String   @map("user_id")
+  modelId              String   @map("model_id")
+  title                String
+  startTime            DateTime @default(now()) @map("start_time")
+  endTime              DateTime? @map("end_time")
+  isActive             Boolean  @default(true) @map("is_active")
+  parentConversationId String?  @map("parent_conversation_id")
+  parentMindmapNodeId  String?  @map("parent_mindmap_node_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  // 关联关系
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiModel            AIModelConfig @relation(fields: [modelId], references: [id])
+  chatMessages       ChatMessage[]
+  mindmap            Mindmap?
+  parentConversation Conversation? @relation("ConversationBranch", fields: [parentConversationId], references: [id])
+  childConversations Conversation[] @relation("ConversationBranch")
+
+  @@map("conversations")
+}
+
+// 对话消息
+model ChatMessage {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  senderType     String   @map("sender_type") // user/ai
+  content        String
+  timestamp      DateTime @default(now())
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // 关联关系
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+// 思维导图
+model Mindmap {
+  id            String   @id @default(cuid())
+  conversationId String   @unique @map("conversation_id")
+  title         String
+  structureData String   @map("structure_data") // JSON格式存储思维导图节点结构
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // 关联关系
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("mindmaps")
+}
