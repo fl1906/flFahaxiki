@@ -128,11 +128,48 @@ export default function ChatPage() {
     } catch (error) {
       console.error('发送消息错误:', error)
 
-      // 添加错误消息
+      // 添加错误消息，根据不同错误类型提供具体的解决方案
+      let errorContent = '抱歉，发送消息时出现错误。请检查您的网络连接和AI模型配置。'
+
+      if (error instanceof Error) {
+        if (error.message.includes('模型配置错误')) {
+          errorContent = `模型配置错误：${error.message}
+
+请尝试以下解决方案：
+1. 在设置中检查AI模型配置是否正确
+2. 确认模型名称与AI服务商支持的模型一致
+3. 检查API端点是否可访问
+4. 验证API密钥是否有效
+
+点击右上角的"设置"按钮前往配置页面。`
+        } else if (error.message.includes('缺少有效的API密钥')) {
+          errorContent = `API密钥配置错误：${error.message}
+
+请在设置中为该模型配置有效的API密钥：
+1. 点击右上角"设置"按钮
+2. 在"AI模型"选项卡中编辑对应模型
+3. 填入有效的API密钥
+4. 保存配置后重试`
+        } else if (error.message.includes('AI服务错误')) {
+          errorContent = `AI服务错误：${error.message}
+
+这可能是由于：
+1. AI服务商暂时不可用
+2. 模型名称配置错误
+3. API端点配置错误
+
+请稍后重试，或检查模型配置。`
+        } else {
+          errorContent = `错误：${error.message}
+
+请检查网络连接并重试，如果问题持续存在，请检查AI模型配置。`
+        }
+      }
+
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: '抱歉，发送消息时出现错误。请检查您的网络连接和AI模型配置。',
+        content: errorContent,
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMessage])
@@ -189,13 +226,32 @@ export default function ChatPage() {
       })
 
       if (!response.ok) {
-        throw new Error('AI服务响应错误')
+        const errorData = await response.json()
+        const errorMessage = errorData.error || 'AI服务响应错误'
+
+        // 根据错误类型提供不同的处理
+        if (errorData.code === 'MODEL_NOT_AVAILABLE' || errorData.code === 'AI_SERVICE_ERROR') {
+          throw new Error(errorMessage)
+        } else if (errorData.code === 'MISSING_API_KEY') {
+          throw new Error('该模型缺少有效的API密钥，请在设置中配置')
+        } else {
+          throw new Error(errorMessage)
+        }
       }
 
       const data = await response.json()
       return data.response || '抱歉，我无法回答这个问题。'
     } catch (error) {
-      // 如果API调用失败，返回模拟回复
+      // 如果是模型配置错误，直接显示错误信息
+      if (error instanceof Error && (
+        error.message.includes('模型配置错误') ||
+        error.message.includes('缺少有效的API密钥') ||
+        error.message.includes('AI服务错误')
+      )) {
+        throw error
+      }
+
+      // 其他错误，返回模拟回复
       return `我理解您关于"${userInput}"的问题。让我为您详细分析一下这个话题...
 
 首先，我们需要明确核心概念。其次，要考虑实际应用场景。最后，还要注意可能的限制和挑战。
