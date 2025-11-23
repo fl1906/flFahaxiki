@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "nodemon --exec \"next dev -p 3003\" --watch src --ext ts,tsx,js,jsx 2>&1",
+    "dev": "nodemon --exec \"next dev -p 3004\" --watch src --ext ts,tsx,js,jsx 2>&1",
     "build": "next build",
     "start": "NODE_ENV=production node .next/standalone/server.js",
     "start:prod": "npm run build && npm run start",

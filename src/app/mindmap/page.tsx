@@ -205,8 +205,12 @@ export default function MindmapPage() {
   }
 
   const goToChat = () => {
-    // 返回对话界面
-    window.location.href = '/chat'
+    // 返回对话界面，带上下文参数
+    if (conversationId) {
+      window.location.href = `/chat?conversation=${conversationId}`
+    } else {
+      window.location.href = '/chat'
+    }
   }
 
   return (

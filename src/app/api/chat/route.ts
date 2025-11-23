@@ -81,8 +81,9 @@ export async function POST(request: NextRequest) {
     } else {
       // OpenAI兼容格式（包括Ollama的OpenAI兼容端点）
 
-      // 对于非Ollama原生端点，验证API密钥（Ollama的OpenAI兼容端点不需要API密钥）
-      if (!isOpenAICompatible && (!model.apiKey || model.apiKey.trim() === '' || model.apiKey === 'sk-demo-key-replace-with-real-key')) {
+      // 验证API密钥（除非是本地Ollama服务，否则都需要API密钥）
+      const isLocalOllama = model.apiEndpoint.includes('localhost:11434')
+      if (!isLocalOllama && (!model.apiKey || model.apiKey.trim() === '' || model.apiKey === 'sk-demo-key-replace-with-real-key')) {
         return NextResponse.json(
           {
             error: '该AI模型未配置有效的API密钥，请在设置中添加有效的API密钥后重试。',
@@ -112,8 +113,12 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json'
       }
 
-      // 只有非OpenAI兼容的Ollama端点才需要API密钥
-      if (!isOpenAICompatible && model.apiKey) {
+      // 对于OpenAI兼容的端点，如果有API密钥则发送
+      // 注意：本地的Ollama OpenAI兼容端点不需要API密钥
+      if (isOpenAICompatible && model.apiKey && !model.apiEndpoint.includes('localhost:11434')) {
+        headers['Authorization'] = `Bearer ${model.apiKey}`
+      } else if (!isOpenAICompatible && model.apiKey) {
+        // 非OpenAI兼容的端点如果需要API密钥也要发送
         headers['Authorization'] = `Bearer ${model.apiKey}`
       }
 

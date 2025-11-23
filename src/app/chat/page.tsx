@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import DashboardLayout from '@/components/layout/dashboard-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,6 +38,9 @@ interface AIModel {
 }
 
 export default function ChatPage() {
+  const searchParams = useSearchParams()
+  const conversationParamId = searchParams.get('conversation')
+
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -50,6 +54,7 @@ export default function ChatPage() {
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [mindmapVisible, setMindmapVisible] = useState(false)
   const [zoom, setZoom] = useState(1)
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -76,6 +81,50 @@ export default function ChatPage() {
 
     fetchModels()
   }, [selectedModel])
+
+  // 加载历史对话
+  useEffect(() => {
+    if (conversationParamId) {
+      loadConversation(conversationParamId)
+    }
+  }, [conversationParamId])
+
+  const loadConversation = async (id: string) => {
+    try {
+      setIsLoadingConversation(true)
+      const response = await fetch(`/api/conversations/${id}`)
+
+      if (response.ok) {
+        const data = await response.json()
+
+        // 设置对话信息
+        setConversationId(data.conversation.id)
+        setConversationTitle(data.conversation.title)
+
+        // 设置选择的模型
+        if (data.conversation.modelId) {
+          setSelectedModel(data.conversation.modelId)
+        }
+
+        // 加载消息历史
+        if (data.messages && data.messages.length > 0) {
+          const loadedMessages: Message[] = data.messages.map((msg: any) => ({
+            id: msg.id,
+            type: msg.senderType === 'user' ? 'user' : 'ai',
+            content: msg.content,
+            timestamp: new Date(msg.timestamp)
+          }))
+          setMessages(loadedMessages)
+        }
+      } else {
+        console.error('加载对话失败')
+      }
+    } catch (error) {
+      console.error('加载对话错误:', error)
+    } finally {
+      setIsLoadingConversation(false)
+    }
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -357,17 +406,32 @@ export default function ChatPage() {
         <div className="flex-1 overflow-hidden">
           <ScrollArea className="h-full">
             <div className="p-4 space-y-4">
-              {messages.length === 0 ? (
+              {isLoadingConversation ? (
+                <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">加载对话中...</h3>
+                  <p className="text-gray-500">正在加载历史对话内容</p>
+                </div>
+              ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center py-12">
                   <MessageSquare className="h-12 w-12 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">开始新对话</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    {conversationParamId ? '对话不存在' : '开始新对话'}
+                  </h3>
                   <p className="text-gray-500 mb-4">
-                    {availableModels.length === 0 
-                      ? "请先在设置中添加AI模型" 
-                      : "选择AI模型并输入您的问题开始对话"
+                    {conversationParamId
+                      ? '请检查对话链接或返回历史页面'
+                      : availableModels.length === 0
+                        ? "请先在设置中添加AI模型"
+                        : "选择AI模型并输入您的问题开始对话"
                     }
                   </p>
-                  {availableModels.length > 0 && (
+                  {conversationParamId && (
+                    <Button onClick={() => window.location.href = '/history'}>
+                      返回历史对话
+                    </Button>
+                  )}
+                  {!conversationParamId && availableModels.length > 0 && (
                     <div className="flex flex-wrap gap-2 justify-center">
                       {['你好，请介绍一下自己', '帮我分析一下这个需求', '我需要一些编程建议'].map((suggestion) => (
                         <Button
@@ -382,7 +446,7 @@ export default function ChatPage() {
                       ))}
                     </div>
                   )}
-                  {availableModels.length === 0 && (
+                  {!conversationParamId && availableModels.length === 0 && (
                     <Button onClick={() => window.location.href = '/settings'}>
                       <Settings className="h-4 w-4 mr-2" />
                       前往设置添加模型
