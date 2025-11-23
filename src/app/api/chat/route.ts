@@ -128,6 +128,28 @@ export async function POST(request: NextRequest) {
       const errorText = await response.text()
       console.error('API调用失败:', response.status, errorText)
 
+      let errorMessage = `API调用失败: ${response.status} ${response.statusText}`
+      let errorCode = 'API_CALL_FAILED'
+
+      // 尝试解析JSON错误响应
+      try {
+        const errorJson = JSON.parse(errorText)
+        if (errorJson.error?.message) {
+          errorMessage = errorJson.error.message
+
+          // 针对"暂无可用渠道"错误的特殊处理
+          if (errorMessage.includes('暂无可用渠道') || errorMessage.includes('模型') && errorMessage.includes('渠道')) {
+            errorMessage = `AI模型配置错误：${errorMessage}。请检查模型名称是否正确，或在设置中重新配置AI模型。`
+            errorCode = 'MODEL_NOT_AVAILABLE'
+          } else if (errorJson.error?.type === 'v_api_error') {
+            errorMessage = `AI服务错误：${errorMessage}。请检查模型配置或联系管理员。`
+            errorCode = 'AI_SERVICE_ERROR'
+          }
+        }
+      } catch (e) {
+        // JSON解析失败，使用原始错误文本
+      }
+
       // 根据不同的HTTP状态码返回具体的错误信息
       if (response.status === 401) {
         return NextResponse.json(
@@ -140,8 +162,8 @@ export async function POST(request: NextRequest) {
       } else if (response.status === 403) {
         return NextResponse.json(
           {
-            error: 'API访问被拒绝，请检查API密钥权限或账户余额。',
-            code: 'API_ACCESS_DENIED'
+            error: errorMessage,
+            code: errorCode
           },
           { status: 403 }
         )
@@ -156,8 +178,8 @@ export async function POST(request: NextRequest) {
       } else {
         return NextResponse.json(
           {
-            error: `API调用失败: ${response.status} ${response.statusText}`,
-            code: 'API_CALL_FAILED'
+            error: errorMessage,
+            code: errorCode
           },
           { status: 502 }
         )

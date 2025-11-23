@@ -147,10 +147,13 @@ export default function MindmapPage() {
     const nodeSize = level === 0 ? 'w-32 h-16' : level === 1 ? 'w-28 h-14' : 'w-24 h-12'
     const fontSize = level === 0 ? 'text-sm font-semibold' : level === 1 ? 'text-xs' : 'text-xs'
 
+    // 确保 children 是一个数组
+    const children = node.children || []
+
     return (
       <div key={node.id}>
         {/* 连接线 */}
-        {node.children.map((child) => (
+        {children.map((child) => (
           <svg
             key={`line-${node.id}-${child.id}`}
             className="absolute top-0 left-0 w-full h-full pointer-events-none"
@@ -186,7 +189,7 @@ export default function MindmapPage() {
         </div>
 
         {/* 子节点 */}
-        {node.children.map((child) => renderNode(child, level + 1))}
+        {children.map((child) => renderNode(child, level + 1))}
       </div>
     )
   }
@@ -320,7 +323,7 @@ export default function MindmapPage() {
           )}
 
           {/* 空状态 */}
-          {!isLoading && !error && mindmapData && mindmapData.children.length === 0 && (
+          {!isLoading && !error && mindmapData && (!mindmapData.children || mindmapData.children.length === 0) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center h-full text-center bg-white">
               <Brain className="h-12 w-12 text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">暂无思维导图内容</h3>
