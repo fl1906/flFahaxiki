@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { message, modelId, modelEndpoint, conversationId } = await request.json()
+    const { message, modelId, modelEndpoint, modelName, conversationId } = await request.json()
 
     if (!message || !modelId || !modelEndpoint) {
       return NextResponse.json(
@@ -45,26 +45,54 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 验证API密钥配置
-    if (!model.apiKey || model.apiKey.trim() === '' || model.apiKey === 'sk-demo-key-replace-with-real-key') {
-      return NextResponse.json(
-        {
-          error: '该AI模型未配置有效的API密钥，请在设置中添加有效的API密钥后重试。',
-          code: 'MISSING_API_KEY'
-        },
-        { status: 400 }
-      )
-    }
+    // 检测是否是Ollama服务器
+    // 如果端点包含 /v1/chat/completions，则使用OpenAI兼容格式
+    // 否则使用原生Ollama API格式
+    const isOpenAICompatible = model.apiEndpoint.includes('/v1/chat/completions')
+    const isOllamaNative = model.apiEndpoint.includes('ollama') ||
+                           (model.apiEndpoint.includes('localhost:11434') && !isOpenAICompatible)
 
     // 调用AI服务
-    const apiModel = model.model || model.modelName
-    const response = await fetch(model.apiEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${model.apiKey}`
-      },
-      body: JSON.stringify({
+    // 优先使用前端发送的modelName，否则使用数据库中的model字段
+    const apiModel = modelName || model.model || model.modelName
+
+    let response: Response
+    let requestBody: any
+
+    if (isOllamaNative) {
+      // 原生Ollama API格式
+      requestBody = {
+        model: apiModel,
+        prompt: `你是一个专业的AI助手，请用简洁、准确的方式回答用户的问题。\n\n用户问题：${message}\n\n回答：`,
+        stream: false,
+        options: {
+          temperature: 0.7,
+          num_predict: 2000
+        }
+      }
+
+      response = await fetch(`${model.apiEndpoint}/api/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      })
+    } else {
+      // OpenAI兼容格式（包括Ollama的OpenAI兼容端点）
+
+      // 对于非Ollama原生端点，验证API密钥（Ollama的OpenAI兼容端点不需要API密钥）
+      if (!isOpenAICompatible && (!model.apiKey || model.apiKey.trim() === '' || model.apiKey === 'sk-demo-key-replace-with-real-key')) {
+        return NextResponse.json(
+          {
+            error: '该AI模型未配置有效的API密钥，请在设置中添加有效的API密钥后重试。',
+            code: 'MISSING_API_KEY'
+          },
+          { status: 400 }
+        )
+      }
+
+      requestBody = {
         model: apiModel,
         messages: [
           {
@@ -78,8 +106,23 @@ export async function POST(request: NextRequest) {
         ],
         max_tokens: 2000,
         temperature: 0.7
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+
+      // 只有非OpenAI兼容的Ollama端点才需要API密钥
+      if (!isOpenAICompatible && model.apiKey) {
+        headers['Authorization'] = `Bearer ${model.apiKey}`
+      }
+
+      response = await fetch(model.apiEndpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
       })
-    })
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -122,7 +165,15 @@ export async function POST(request: NextRequest) {
     }
 
     const completion = await response.json()
-    const aiResponse = completion.choices?.[0]?.message?.content
+    let aiResponse: string
+
+    if (isOllamaNative) {
+      // 原生Ollama响应格式
+      aiResponse = completion.response
+    } else {
+      // OpenAI兼容格式
+      aiResponse = completion.choices?.[0]?.message?.content
+    }
 
     if (!aiResponse) {
       return NextResponse.json(

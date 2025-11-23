@@ -5,7 +5,7 @@ import { verifyJWT } from '@/lib/auth'
 // 更新AI模型
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // 验证用户身份
@@ -26,7 +26,7 @@ export async function PUT(
     }
 
     const { modelName, model, apiEndpoint, apiKey, description } = await request.json()
-    const modelId = params.id
+    const { id: modelId } = await params
 
     // 验证模型是否属于当前用户
     const existingModel = await db.aIModelConfig.findFirst({
@@ -95,7 +95,7 @@ export async function PUT(
 // 删除AI模型
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // 验证用户身份
@@ -115,7 +115,7 @@ export async function DELETE(
       )
     }
 
-    const modelId = params.id
+    const { id: modelId } = await params
 
     // 验证模型是否属于当前用户
     const existingModel = await db.aIModelConfig.findFirst({
@@ -132,7 +132,30 @@ export async function DELETE(
       )
     }
 
-    // 删除模型
+    // 检查是否有对话正在使用该模型
+    const relatedConversations = await db.conversation.findMany({
+      where: {
+        modelId: modelId
+      },
+      select: {
+        id: true,
+        title: true
+      }
+    })
+
+    if (relatedConversations.length > 0) {
+      // 如果有对话正在使用该模型，先询问用户是否要解引用
+      return NextResponse.json({
+        error: '该模型正在被以下对话使用，无法直接删除。请先删除相关对话或更换对话使用的模型。',
+        relatedConversations: relatedConversations.map(conv => ({
+          id: conv.id,
+          title: conv.title
+        })),
+        code: 'MODEL_IN_USE'
+      }, { status: 409 })
+    }
+
+    // 如果没有被使用，则可以安全删除
     await db.aIModelConfig.delete({
       where: { id: modelId }
     })

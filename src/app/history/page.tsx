@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/layout/dashboard-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,67 +39,68 @@ interface Conversation {
   hasMindmap: boolean
 }
 
+interface AIModel {
+  id: string
+  modelName: string
+}
+
 export default function HistoryPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedModel, setSelectedModel] = useState('all')
   const [selectedConversations, setSelectedConversations] = useState<string[]>([])
   const [sortBy, setSortBy] = useState('time')
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [availableModels, setAvailableModels] = useState<AIModel[]>([])
+  const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
 
-  // 模拟历史对话数据
-  const conversations: Conversation[] = [
-    {
-      id: '1',
-      title: '产品需求讨论',
-      model: 'GPT-4',
-      startTime: new Date('2024-01-15T10:30:00'),
-      messageCount: 12,
-      hasMindmap: true
-    },
-    {
-      id: '2',
-      title: '代码调试问题',
-      model: 'Claude',
-      startTime: new Date('2024-01-14T15:45:00'),
-      messageCount: 8,
-      hasMindmap: false
-    },
-    {
-      id: '3',
-      title: '技术方案评估',
-      model: 'GPT-3.5',
-      startTime: new Date('2024-01-13T09:20:00'),
-      messageCount: 15,
-      hasMindmap: true
-    },
-    {
-      id: '4',
-      title: '会议纪要整理',
-      model: 'GPT-4',
-      startTime: new Date('2024-01-12T14:00:00'),
-      messageCount: 6,
-      hasMindmap: true
-    },
-    {
-      id: '5',
-      title: '架构设计讨论',
-      model: 'Claude',
-      startTime: new Date('2024-01-11T11:30:00'),
-      messageCount: 20,
-      hasMindmap: true
-    },
-  ]
+  // 获取对话列表
+  useEffect(() => {
+    fetchConversations()
+    fetchModels()
+  }, [searchTerm, selectedModel, sortBy])
 
-  const models = ['all', 'GPT-4', 'Claude', 'GPT-3.5', '本地模型']
+  const fetchConversations = async () => {
+    try {
+      const params = new URLSearchParams()
+      if (searchTerm) params.append('search', searchTerm)
+      if (selectedModel !== 'all') params.append('modelId', selectedModel)
+      if (sortBy) params.append('sortBy', sortBy)
 
-  const filteredConversations = conversations.filter(conv => {
-    const matchesSearch = conv.title.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesModel = selectedModel === 'all' || conv.model === selectedModel
-    return matchesSearch && matchesModel
-  })
+      const response = await fetch(`/api/conversations?${params.toString()}`)
+      if (response.ok) {
+        const data = await response.json()
+        // 转换字符串日期为Date对象
+        const formattedConversations = data.conversations.map((conv: any) => ({
+          ...conv,
+          startTime: new Date(conv.startTime)
+        }))
+        setConversations(formattedConversations)
+      }
+    } catch (error) {
+      console.error('获取对话列表失败:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchModels = async () => {
+    try {
+      const response = await fetch('/api/models')
+      if (response.ok) {
+        const data = await response.json()
+        setAvailableModels(data.models || [])
+      }
+    } catch (error) {
+      console.error('获取模型列表失败:', error)
+    }
+  }
+
+  // 过滤逻辑现在在API端处理，这里直接使用conversations
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedConversations(filteredConversations.map(conv => conv.id))
+      setSelectedConversations(conversations.map(conv => conv.id))
     } else {
       setSelectedConversations([])
     }
@@ -124,11 +125,72 @@ export default function HistoryPage() {
   }
 
   const handleExport = () => {
-    alert(`导出 ${selectedConversations.length} 个对话`)
+    alert(`导出功能开发中...`)
   }
 
-  const handleDelete = () => {
-    alert(`删除 ${selectedConversations.length} 个对话`)
+  // 批量删除对话
+  const handleDelete = async () => {
+    if (selectedConversations.length === 0) {
+      alert('请先选择要删除的对话')
+      return
+    }
+
+    const confirmed = confirm(`确定要删除选中的 ${selectedConversations.length} 个对话吗？此操作无法撤销，对话内容和相关思维导图将被永久删除。`)
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      const response = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'delete',
+          conversationIds: selectedConversations
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        alert(data.message)
+        setSelectedConversations([])
+        // 重新获取对话列表
+        fetchConversations()
+      } else {
+        const error = await response.json()
+        alert(`删除失败: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('删除对话错误:', error)
+      alert('删除失败，请稍后重试')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  // 单个删除对话
+  const handleSingleDelete = async (id: string, title: string) => {
+    const confirmed = confirm(`确定要删除对话"${title}"吗？此操作无法撤销，对话内容和相关思维导图将被永久删除。`)
+    if (!confirmed) return
+
+    try {
+      const response = await fetch(`/api/conversations/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        alert('对话删除成功')
+        // 重新获取对话列表
+        fetchConversations()
+      } else {
+        const error = await response.json()
+        alert(`删除失败: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('删除对话错误:', error)
+      alert('删除失败，请稍后重试')
+    }
   }
 
   const formatDate = (date: Date) => {
@@ -188,9 +250,10 @@ export default function HistoryPage() {
                 <SelectValue placeholder="选择模型" />
               </SelectTrigger>
               <SelectContent>
-                {models.map((model) => (
-                  <SelectItem key={model} value={model}>
-                    {model === 'all' ? '全部模型' : model}
+                <SelectItem value="all">全部模型</SelectItem>
+                {availableModels.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.modelName}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -219,8 +282,12 @@ export default function HistoryPage() {
                 <Download className="h-4 w-4 mr-2" />
                 导出
               </Button>
-              <Button variant="outline" size="sm" onClick={handleDelete}>
-                <Trash2 className="h-4 w-4 mr-2" />
+              <Button variant="outline" size="sm" onClick={handleDelete} disabled={deleting}>
+                {deleting ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500 mr-2" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
                 删除
               </Button>
             </div>
@@ -236,8 +303,9 @@ export default function HistoryPage() {
                   <TableRow>
                     <TableHead className="w-12">
                       <Checkbox
-                        checked={selectedConversations.length === filteredConversations.length}
+                        checked={conversations.length > 0 && selectedConversations.length === conversations.length}
                         onCheckedChange={handleSelectAll}
+                        disabled={conversations.length === 0}
                       />
                     </TableHead>
                     <TableHead>对话标题</TableHead>
@@ -249,7 +317,16 @@ export default function HistoryPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredConversations.map((conversation) => (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mr-3" />
+                          正在加载对话列表...
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : conversations.map((conversation) => (
                     <TableRow key={conversation.id} className="hover:bg-gray-50">
                       <TableCell>
                         <Checkbox
@@ -323,7 +400,10 @@ export default function HistoryPage() {
                               分享对话
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => handleSingleDelete(conversation.id, conversation.title)}
+                            >
                               <Trash2 className="h-4 w-4 mr-2" />
                               删除对话
                             </DropdownMenuItem>
@@ -336,7 +416,7 @@ export default function HistoryPage() {
               </Table>
 
               {/* 空状态 */}
-              {filteredConversations.length === 0 && (
+              {!loading && conversations.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12">
                   <MessageSquare className="h-12 w-12 text-gray-400 mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">暂无对话记录</h3>

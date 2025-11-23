@@ -30,6 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ThemeModeSelector } from "@/components/ui/theme-toggle"
 
 interface AIModel {
   id: string
@@ -163,23 +164,33 @@ export default function SettingsPage() {
   }
 
   const handleDeleteModel = async (id: string) => {
-    if (confirm('确定要删除这个AI模型吗？')) {
-      try {
-        const response = await fetch(`/api/models/${id}`, {
-          method: 'DELETE',
-        })
+    try {
+      const response = await fetch(`/api/models/${id}`, {
+        method: 'DELETE',
+      })
 
-        if (response.ok) {
-          setAiModels(prev => prev.filter(model => model.id !== id))
-          alert('AI模型删除成功')
+      if (response.ok) {
+        setAiModels(prev => prev.filter(model => model.id !== id))
+        alert('AI模型删除成功')
+      } else {
+        const error = await response.json()
+
+        if (response.status === 409 && error.code === 'MODEL_IN_USE') {
+          // 模型正在被使用，显示详细信息
+          const conversationList = error.relatedConversations
+            .map((conv: { title: string }) => conv.title)
+            .join('、')
+          confirm(
+            `该模型正在被以下对话使用，无法删除：\n${conversationList}\n\n` +
+            '请先删除这些对话或为对话更换其他模型后再尝试删除。'
+          )
         } else {
-          const error = await response.json()
           alert(`删除失败: ${error.error}`)
         }
-      } catch (error) {
-        console.error('删除AI模型错误:', error)
-        alert('删除失败，请稍后重试')
       }
+    } catch (error) {
+      console.error('删除AI模型错误:', error)
+      alert('删除失败，请稍后重试')
     }
   }
 
@@ -293,6 +304,83 @@ export default function SettingsPage() {
                             </Button>
                             <Button onClick={handleAddModel}>
                               添加模型
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+
+                    {/* 编辑模型对话框 */}
+                    <Dialog open={!!editingModel} onOpenChange={(open) => !open && setEditingModel(null)}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>编辑AI模型</DialogTitle>
+                          <DialogDescription>
+                            修改AI模型的配置信息
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="edit-model-name">显示名称</Label>
+                            <Input
+                              id="edit-model-name"
+                              value={modelForm.name}
+                              onChange={(e) => setModelForm(prev => ({ ...prev, name: e.target.value }))}
+                              placeholder="例如: 我的GPT模型"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="edit-model-api">API模型名称</Label>
+                            <Input
+                              id="edit-model-api"
+                              value={modelForm.model}
+                              onChange={(e) => setModelForm(prev => ({ ...prev, model: e.target.value }))}
+                              placeholder="例如: gpt-4o, claude-3-sonnet"
+                            />
+                            <p className="text-sm text-gray-500 mt-1">
+                              用于调用AI API的实际模型名称，如 gpt-4o, claude-3-sonnet-20240229 等
+                            </p>
+                          </div>
+                          <div>
+                            <Label htmlFor="edit-model-endpoint">API地址</Label>
+                            <Input
+                              id="edit-model-endpoint"
+                              value={modelForm.endpoint}
+                              onChange={(e) => setModelForm(prev => ({ ...prev, endpoint: e.target.value }))}
+                              placeholder="https://api.openai.com/v1/chat/completions"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="edit-model-apikey">API密钥（可选）</Label>
+                            <Input
+                              id="edit-model-apikey"
+                              type="password"
+                              value={modelForm.apiKey}
+                              onChange={(e) => setModelForm(prev => ({ ...prev, apiKey: e.target.value }))}
+                              placeholder="输入新的API密钥（留空保持不变）"
+                            />
+                            <p className="text-sm text-gray-500 mt-1">
+                              留空则保持原有密钥不变
+                            </p>
+                          </div>
+                          <div>
+                            <Label htmlFor="edit-model-description">描述（可选）</Label>
+                            <Textarea
+                              id="edit-model-description"
+                              value={modelForm.description}
+                              onChange={(e) => setModelForm(prev => ({ ...prev, description: e.target.value }))}
+                              placeholder="模型描述信息"
+                            />
+                          </div>
+                          <div className="flex justify-end space-x-2">
+                            <Button variant="outline" onClick={() => {
+                              setEditingModel(null)
+                              setModelForm({ name: '', model: '', endpoint: '', apiKey: '', description: '' })
+                            }}>
+                              取消
+                            </Button>
+                            <Button onClick={handleUpdateModel}>
+                              保存修改
                             </Button>
                           </div>
                         </div>
@@ -438,21 +526,38 @@ export default function SettingsPage() {
                     自定义界面主题和显示偏好
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-6">
                   <div>
                     <Label>主题模式</Label>
-                    <div className="flex space-x-2 mt-2">
-                      <Button variant="outline">浅色模式</Button>
-                      <Button variant="outline">深色模式</Button>
-                      <Button variant="outline">跟随系统</Button>
+                    <div className="mt-3">
+                      <ThemeModeSelector />
                     </div>
+                    <p className="text-sm text-gray-500 mt-2">
+                      选择您喜欢的界面主题，可以跟随系统设置自动切换浅色/深色模式
+                    </p>
                   </div>
+
                   <div>
                     <Label>语言设置</Label>
                     <select className="w-full mt-2 p-2 border rounded-md">
                       <option>简体中文</option>
                       <option>English</option>
                     </select>
+                    <p className="text-sm text-gray-500 mt-2">
+                      选择界面显示语言（开发中）
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label>字体大小</Label>
+                    <select className="w-full mt-2 p-2 border rounded-md">
+                      <option>小</option>
+                      <option selected>中</option>
+                      <option>大</option>
+                    </select>
+                    <p className="text-sm text-gray-500 mt-2">
+                      调整界面字体大小（开发中）
+                    </p>
                   </div>
                 </CardContent>
               </Card>

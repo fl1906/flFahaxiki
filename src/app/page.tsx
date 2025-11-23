@@ -1,4 +1,4 @@
-'use client'
+'use client' // 触发重启
 
 import { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/layout/dashboard-layout'

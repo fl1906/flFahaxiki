@@ -31,6 +31,7 @@ interface Message {
 interface AIModel {
   id: string
   name: string
+  model: string
   endpoint: string
   description?: string
 }
@@ -184,6 +185,7 @@ export default function ChatPage() {
           message: userInput,
           modelId: selectedModel,
           modelEndpoint: modelData.endpoint,
+          modelName: modelData.model, // 发送实际的模型名称
           conversationId,
         }),
       })

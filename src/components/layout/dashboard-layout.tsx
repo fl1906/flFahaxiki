@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,9 +27,40 @@ interface DashboardLayoutProps {
   children: React.ReactNode
 }
 
+interface UserData {
+  id: string
+  username: string
+  email: string
+  nickname?: string
+  avatarUrl?: string
+}
+
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [userData, setUserData] = useState<UserData | null>(null)
+  const [userLoading, setUserLoading] = useState(true)
+
+  // 获取用户信息
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const response = await fetch('/api/user')
+        if (response.ok) {
+          const data = await response.json()
+          setUserData(data.user)
+        } else {
+          console.error('获取用户信息失败')
+        }
+      } catch (error) {
+        console.error('获取用户信息错误:', error)
+      } finally {
+        setUserLoading(false)
+      }
+    }
+
+    fetchUserData()
+  }, [])
 
   const menuItems = [
     { icon: BarChart3, label: '首页', href: '/' },
@@ -88,14 +120,29 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="p-4 border-t">
             <div className="flex items-center space-x-3 mb-4">
               <Avatar>
-                <AvatarFallback>用</AvatarFallback>
+                <AvatarImage src={userData?.avatarUrl || ''} />
+                <AvatarFallback>
+                  {userLoading ? (
+                    <div className="animate-pulse bg-gray-200 rounded-full w-8 h-8" />
+                  ) : (
+                    userData?.username?.charAt(0) || userData?.email?.charAt(0) || '用'
+                  )}
+                </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
-                  用户名
+                  {userLoading ? (
+                    <div className="animate-pulse bg-gray-200 h-4 w-20 rounded" />
+                  ) : (
+                    userData?.nickname || userData?.username || '用户'
+                  )}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  user@example.com
+                  {userLoading ? (
+                    <div className="animate-pulse bg-gray-200 h-3 w-24 rounded mt-1" />
+                  ) : (
+                    userData?.email
+                  )}
                 </p>
               </div>
             </div>
@@ -130,6 +177,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </h2>
             </div>
             <div className="flex items-center space-x-4">
+              <ThemeToggle />
               <Button variant="ghost" size="sm">
                 <User className="h-4 w-4" />
               </Button>
