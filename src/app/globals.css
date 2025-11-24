@@ -120,3 +120,121 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* 代码高亮样式 - 使用 GitHub Dark 主题 */
+
+/* 自定义代码高亮覆盖样式 */
+.hljs {
+  background: #1f2937 !important;
+  color: #e5e7eb !important;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #9ca3af !important;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: #f472b6 !important;
+  font-weight: bold;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag .hljs-attr {
+  color: #fbbf24 !important;
+}
+
+.hljs-string,
+.hljs-doctag {
+  color: #34d399 !important;
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id {
+  color: #60a5fa !important;
+  font-weight: bold;
+}
+
+.hljs-type,
+.hljs-class .hljs-title {
+  color: #a78bfa !important;
+  font-weight: bold;
+}
+
+.hljs-tag,
+.hljs-name,
+.hljs-attribute {
+  color: #f87171 !important;
+  font-weight: normal;
+}
+
+.hljs-regexp,
+.hljs-link {
+  color: #fbbf24 !important;
+}
+
+.hljs-symbol,
+.hljs-bullet {
+  color: #34d399 !important;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #60a5fa !important;
+}
+
+.hljs-meta {
+  color: #9ca3af !important;
+}
+
+.hljs-deletion {
+  background: #ef444420 !important;
+}
+
+.hljs-addition {
+  background: #10b98120 !important;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+/* AI 消息 Markdown 样式 */
+.ai-message-content {
+  /* 移除 prose 的默认最大宽度限制 */
+  max-width: none;
+}
+
+.ai-message-content h1:first-child,
+.ai-message-content h2:first-child,
+.ai-message-content h3:first-child {
+  margin-top: 0;
+}
+
+.ai-message-content pre {
+  margin: 1rem 0;
+}
+
+.ai-message-content p:first-child {
+  margin-top: 0;
+}
+
+.ai-message-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* 代码块复制按钮在AI消息中的样式 */
+.ai-message-content .group:hover button {
+  opacity: 1;
+}

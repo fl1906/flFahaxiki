@@ -24,7 +24,7 @@ function generateMindmapFromMessages(conversationId: string, conversationTitle: 
       // 获取对话消息
       const messages = await db.chatMessage.findMany({
         where: { conversationId },
-        orderBy: { timestamp: 'asc' }
+        orderBy: { createdAt: 'asc' }
       })
 
       if (messages.length === 0) {

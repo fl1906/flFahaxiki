@@ -10,11 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { 
-  Send, 
-  Brain, 
-  Settings, 
-  Plus, 
+import MarkdownRenderer from '@/components/ui/markdown-renderer'
+import MarkdownThemeSelector from '@/components/ui/markdown-theme-selector'
+import CollapsibleSidebar from '@/components/mindmap/collapsible-sidebar'
+import {
+  Send,
+  Brain,
+  Settings,
+  Plus,
   MessageSquare,
   User,
   Bot,
@@ -358,176 +361,201 @@ export default function ChatPage() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col h-full">
-        {/* 对话头部 */}
-        <div className="flex items-center justify-between p-4 border-b bg-white">
-          <div className="flex items-center space-x-4">
-            <Input
-              value={conversationTitle}
-              onChange={(e) => setConversationTitle(e.target.value)}
-              className="text-lg font-semibold border-none p-0 h-auto focus-visible:ring-0"
-            />
-            <Badge variant="secondary">{messages.length} 条消息</Badge>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <Select value={selectedModel} onValueChange={setSelectedModel} disabled={modelsLoading}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder={modelsLoading ? "加载模型中..." : "选择AI模型"} />
-              </SelectTrigger>
-              <SelectContent>
-                {availableModels.length === 0 ? (
-                  <SelectItem value="no-models" disabled>
-                    暂无可用模型
-                  </SelectItem>
-                ) : (
-                  availableModels.map((model) => (
-                    <SelectItem key={model.id} value={model.id}>
-                      {model.name}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            
-            <Button variant="outline" size="sm" onClick={openMindmap}>
-              <Brain className="h-4 w-4 mr-2" />
-              思维导图
-            </Button>
-            
-            <Button variant="outline" size="sm" onClick={clearConversation}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              清空
-            </Button>
-          </div>
-        </div>
+      <div className="flex h-full">
+        {/* 主对话区域 */}
+        <div className={`flex-1 flex flex-col transition-all duration-300 ${
+          messages.length > 0 ? 'mr-0' : 'mr-0'
+        }`}>
+          {/* 对话头部 */}
+          <div className="flex items-center justify-between p-4 border-b bg-white">
+            <div className="flex items-center space-x-4">
+              <Input
+                value={conversationTitle}
+                onChange={(e) => setConversationTitle(e.target.value)}
+                className="text-lg font-semibold border-none p-0 h-auto focus-visible:ring-0"
+              />
+              <Badge variant="secondary">{messages.length} 条消息</Badge>
+            </div>
 
-        {/* 消息区域 */}
-        <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full">
-            <div className="p-4 space-y-4">
-              {isLoadingConversation ? (
-                <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">加载对话中...</h3>
-                  <p className="text-gray-500">正在加载历史对话内容</p>
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                  <MessageSquare className="h-12 w-12 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    {conversationParamId ? '对话不存在' : '开始新对话'}
-                  </h3>
-                  <p className="text-gray-500 mb-4">
-                    {conversationParamId
-                      ? '请检查对话链接或返回历史页面'
-                      : availableModels.length === 0
-                        ? "请先在设置中添加AI模型"
-                        : "选择AI模型并输入您的问题开始对话"
-                    }
-                  </p>
-                  {conversationParamId && (
-                    <Button onClick={() => window.location.href = '/history'}>
-                      返回历史对话
-                    </Button>
+            <div className="flex items-center space-x-2">
+              <Select value={selectedModel} onValueChange={setSelectedModel} disabled={modelsLoading}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder={modelsLoading ? "加载模型中..." : "选择AI模型"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.length === 0 ? (
+                    <SelectItem value="no-models" disabled>
+                      暂无可用模型
+                    </SelectItem>
+                  ) : (
+                    availableModels.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.name}
+                      </SelectItem>
+                    ))
                   )}
-                  {!conversationParamId && availableModels.length > 0 && (
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {['你好，请介绍一下自己', '帮我分析一下这个需求', '我需要一些编程建议'].map((suggestion) => (
-                        <Button
-                          key={suggestion}
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setInput(suggestion)}
-                          disabled={!selectedModel}
-                        >
-                          {suggestion}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                  {!conversationParamId && availableModels.length === 0 && (
-                    <Button onClick={() => window.location.href = '/settings'}>
-                      <Settings className="h-4 w-4 mr-2" />
-                      前往设置添加模型
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex items-start space-x-3 ${
-                      message.type === 'user' ? 'justify-end' : 'justify-start'
-                    }`}
-                  >
-                    {message.type === 'ai' && (
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                        <Bot className="h-4 w-4 text-blue-600" />
+                </SelectContent>
+              </Select>
+
+              <MarkdownThemeSelector />
+
+              <Button variant="outline" size="sm" onClick={openMindmap}>
+                <Brain className="h-4 w-4 mr-2" />
+                思维导图
+              </Button>
+
+              <Button variant="outline" size="sm" onClick={clearConversation}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                清空
+              </Button>
+            </div>
+          </div>
+
+          {/* 消息区域 */}
+          <div className="flex-1 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="p-4 space-y-4">
+                {isLoadingConversation ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">加载对话中...</h3>
+                    <p className="text-gray-500">正在加载历史对话内容</p>
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                    <MessageSquare className="h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      {conversationParamId ? '对话不存在' : '开始新对话'}
+                    </h3>
+                    <p className="text-gray-500 mb-4">
+                      {conversationParamId
+                        ? '请检查对话链接或返回历史页面'
+                        : availableModels.length === 0
+                          ? "请先在设置中添加AI模型"
+                          : "选择AI模型并输入您的问题开始对话"
+                      }
+                    </p>
+                    {conversationParamId && (
+                      <Button onClick={() => window.location.href = '/history'}>
+                        返回历史对话
+                      </Button>
+                    )}
+                    {!conversationParamId && availableModels.length > 0 && (
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {['你好，请介绍一下自己', '帮我分析一下这个需求', '我需要一些编程建议'].map((suggestion) => (
+                          <Button
+                            key={suggestion}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setInput(suggestion)}
+                            disabled={!selectedModel}
+                          >
+                            {suggestion}
+                          </Button>
+                        ))}
                       </div>
                     )}
-                    
-                    <div
-                      className={`max-w-2xl rounded-lg p-4 ${
-                        message.type === 'user'
-                          ? 'bg-blue-500 text-white ml-auto'
-                          : 'bg-gray-100 text-gray-900'
-                      }`}
-                    >
-                      <p className="whitespace-pre-wrap">{message.content}</p>
-                      <p className={`text-xs mt-2 ${
-                        message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
-                      }`}>
-                        {message.timestamp.toLocaleTimeString()}
-                      </p>
-                    </div>
-                    
-                    {message.type === 'user' && (
-                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                        <User className="h-4 w-4 text-gray-600" />
-                      </div>
+                    {!conversationParamId && availableModels.length === 0 && (
+                      <Button onClick={() => window.location.href = '/settings'}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        前往设置添加模型
+                      </Button>
                     )}
                   </div>
-                ))
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
-        </div>
+                ) : (
+                  messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex items-start space-x-3 ${
+                        message.type === 'user' ? 'justify-end' : 'justify-start'
+                      }`}
+                    >
+                      {message.type === 'ai' && (
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                          <Bot className="h-4 w-4 text-blue-600" />
+                        </div>
+                      )}
 
-        {/* 输入区域 */}
-        <div className="border-t bg-white p-4">
-          <div className="flex items-end space-x-2">
-            <div className="flex-1">
-              <Input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={
-                  availableModels.length === 0 
-                    ? "请先在设置中添加AI模型" 
-                    : selectedModel 
-                      ? "输入您的问题..." 
-                      : "请先选择AI模型"
-                }
-                disabled={isLoading || availableModels.length === 0}
-                className="min-h-[40px]"
-              />
+                      <div
+                        className={`max-w-3xl rounded-lg p-4 ${
+                          message.type === 'user'
+                            ? 'bg-blue-500 text-white ml-auto'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                        }`}
+                      >
+                        {message.type === 'ai' ? (
+                          <MarkdownRenderer
+                            content={message.content}
+                            className="ai-message-content"
+                          />
+                        ) : (
+                          <p className="whitespace-pre-wrap">{message.content}</p>
+                        )}
+                        <p className={`text-xs mt-2 ${
+                          message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
+                        }`}>
+                          {message.timestamp.toLocaleTimeString()}
+                        </p>
+                      </div>
+
+                      {message.type === 'user' && (
+                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                          <User className="h-4 w-4 text-gray-600" />
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+          </div>
+
+          {/* 输入区域 */}
+          <div className="border-t bg-white p-4">
+            <div className="flex items-end space-x-2">
+              <div className="flex-1">
+                <Input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder={
+                    availableModels.length === 0
+                      ? "请先在设置中添加AI模型"
+                      : selectedModel
+                        ? "输入您的问题..."
+                        : "请先选择AI模型"
+                  }
+                  disabled={isLoading || availableModels.length === 0}
+                  className="min-h-[40px]"
+                />
+              </div>
+              <Button
+                onClick={handleSendMessage}
+                disabled={!input.trim() || isLoading || !selectedModel || availableModels.length === 0}
+                size="icon"
+              >
+                {isLoading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
             </div>
-            <Button
-              onClick={handleSendMessage}
-              disabled={!input.trim() || isLoading || !selectedModel || availableModels.length === 0}
-              size="icon"
-            >
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
           </div>
         </div>
+
+        {/* 右侧思维导图侧边栏 */}
+        {messages.length > 0 && (
+          <div className="border-l border-gray-200 dark:border-gray-700">
+            <CollapsibleSidebar
+              messages={messages}
+              conversationId={conversationId}
+              className="h-full"
+            />
+          </div>
+        )}
       </div>
     </DashboardLayout>
   )

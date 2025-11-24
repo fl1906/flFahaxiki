@@ -30,6 +30,35 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 读取对话历史作为上下文
+    let conversationHistory: any[] = []
+    if (conversationId) {
+      try {
+        const messages = await db.chatMessage.findMany({
+          where: {
+            conversationId: conversationId
+          },
+          orderBy: {
+            createdAt: 'asc'
+          },
+          take: 20, // 限制历史记录数量，避免prompt过长
+          select: {
+            content: true,
+            senderType: true
+          }
+        })
+
+        // 转换为AI API需要的格式
+        conversationHistory = messages.map(msg => ({
+          role: msg.senderType === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        }))
+      } catch (error) {
+        console.error('读取对话历史失败:', error)
+        // 如果读取历史失败，继续使用无历史记录的模式
+      }
+    }
+
     // 获取模型信息（包含API密钥）
     const model = await db.aIModelConfig.findFirst({
       where: {
@@ -60,10 +89,24 @@ export async function POST(request: NextRequest) {
     let requestBody: any
 
     if (isOllamaNative) {
-      // 原生Ollama API格式
+      // 原生Ollama API格式 - 包含历史对话上下文
+      let promptWithContext = '你是一个专业的AI助手，请用简洁、准确的方式回答用户的问题。请记住之前的对话内容，保持对话的连贯性和上下文理解。\n\n'
+
+      // 添加历史对话记录
+      if (conversationHistory.length > 0) {
+        promptWithContext += '以下是之前的对话记录：\n'
+        conversationHistory.forEach((msg, index) => {
+          const roleText = msg.role === 'user' ? '用户' : '助手'
+          promptWithContext += `${roleText}：${msg.content}\n`
+        })
+        promptWithContext += '\n'
+      }
+
+      promptWithContext += `现在请回答新的问题：\n用户：${message}\n助手：`
+
       requestBody = {
         model: apiModel,
-        prompt: `你是一个专业的AI助手，请用简洁、准确的方式回答用户的问题。\n\n用户问题：${message}\n\n回答：`,
+        prompt: promptWithContext,
         stream: false,
         options: {
           temperature: 0.7,
@@ -93,18 +136,28 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      // 构建包含历史对话的messages数组
+      const messagesWithHistory: any[] = [
+        {
+          role: 'system',
+          content: '你是一个专业的AI助手，请用简洁、准确的方式回答用户的问题。请记住之前的对话内容，保持对话的连贯性和上下文理解。'
+        }
+      ]
+
+      // 添加历史对话记录
+      if (conversationHistory.length > 0) {
+        messagesWithHistory.push(...conversationHistory)
+      }
+
+      // 添加当前用户消息
+      messagesWithHistory.push({
+        role: 'user',
+        content: message
+      })
+
       requestBody = {
         model: apiModel,
-        messages: [
-          {
-            role: 'system',
-            content: '你是一个专业的AI助手，请用简洁、准确的方式回答用户的问题。'
-          },
-          {
-            role: 'user',
-            content: message
-          }
-        ],
+        messages: messagesWithHistory,
         max_tokens: 2000,
         temperature: 0.7
       }
