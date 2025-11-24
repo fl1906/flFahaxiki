@@ -89,6 +89,78 @@ export async function GET(
   }
 }
 
+// 更新对话标题
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // 验证用户身份
+    const token = request.cookies.get('token')?.value
+    if (!token) {
+      return NextResponse.json(
+        { error: '未授权访问' },
+        { status: 401 }
+      )
+    }
+
+    const payload = verifyJWT(token)
+    if (!payload || !payload.userId) {
+      return NextResponse.json(
+        { error: '无效的token' },
+        { status: 401 }
+      )
+    }
+
+    const { id: conversationId } = await params
+    const body = await request.json()
+    const { title } = body
+
+    if (!title) {
+      return NextResponse.json(
+        { error: '标题不能为空' },
+        { status: 400 }
+      )
+    }
+
+    // 验证对话是否属于当前用户
+    const existingConversation = await db.conversation.findFirst({
+      where: {
+        id: conversationId,
+        userId: payload.userId
+      }
+    })
+
+    if (!existingConversation) {
+      return NextResponse.json(
+        { error: '对话不存在或无权限' },
+        { status: 404 }
+      )
+    }
+
+    // 更新对话标题
+    const updatedConversation = await db.conversation.update({
+      where: { id: conversationId },
+      data: { title }
+    })
+
+    return NextResponse.json({
+      message: '对话标题更新成功',
+      conversation: {
+        id: updatedConversation.id,
+        title: updatedConversation.title
+      }
+    })
+
+  } catch (error) {
+    console.error('更新对话标题错误:', error)
+    return NextResponse.json(
+      { error: '服务器错误' },
+      { status: 500 }
+    )
+  }
+}
+
 // 删除单个对话
 export async function DELETE(
   request: NextRequest,

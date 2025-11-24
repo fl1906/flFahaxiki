@@ -32,6 +32,7 @@ interface Activity {
   name: string
   time: string
   model?: string
+  messageCount?: number
 }
 
 export default function Home() {
@@ -47,19 +48,58 @@ export default function Home() {
   ]
 
   useEffect(() => {
-    // 这里应该调用API获取真实的统计数据和最近活动
-    // 目前显示空状态，等待用户开始使用
+    // 调用API获取真实的统计数据和最近活动
     const loadDashboardData = async () => {
       try {
-        // TODO: 实现真实的API调用
-        // const statsResponse = await fetch('/api/stats')
-        // const activitiesResponse = await fetch('/api/recent-activities')
+        const statsResponse = await fetch('/api/stats')
 
-        // 暂时设置为空数组，显示真实状态
-        setStats([])
-        setRecentActivities([])
+        if (statsResponse.ok) {
+          const data = await statsResponse.json()
+
+          // 格式化统计数据
+          const formattedStats: Stat[] = [
+            {
+              title: '总对话数',
+              value: data.stats.totalConversations.toString(),
+              icon: MessageSquare,
+              change: data.stats.conversationChange,
+              color: 'text-blue-600'
+            },
+            {
+              title: '思维导图',
+              value: data.stats.totalMindmaps.toString(),
+              icon: Brain,
+              change: data.stats.mindmapsChange,
+              color: 'text-green-600'
+            },
+            {
+              title: 'AI模型',
+              value: data.stats.totalModels.toString(),
+              icon: Users,
+              change: data.stats.modelsChange,
+              color: 'text-purple-600'
+            },
+            {
+              title: '本周活跃',
+              value: `${data.stats.activeDays}天`,
+              icon: TrendingUp,
+              change: data.stats.activeDaysChange,
+              color: 'text-orange-600'
+            },
+          ]
+
+          setStats(formattedStats)
+          setRecentActivities(data.recentActivities || [])
+        } else {
+          // 如果API调用失败，使用默认数据
+          setStats([])
+          setRecentActivities([])
+        }
       } catch (error) {
         console.error('加载仪表板数据失败:', error)
+        // 出错时使用默认数据
+        setStats([])
+        setRecentActivities([])
       } finally {
         setIsLoading(false)
       }
@@ -167,7 +207,7 @@ export default function Home() {
                         <div>
                           <p className="font-medium text-gray-900">{activity.name}</p>
                           <p className="text-sm text-gray-500">
-                            {activity.type} • {activity.model || '未知模型'}
+                            {activity.type} • {activity.model || '未知模型'} • {activity.messageCount || 0} 条消息
                           </p>
                         </div>
                       </div>

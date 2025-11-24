@@ -140,11 +140,16 @@ export default function ChatPage() {
   const handleSendMessage = async () => {
     if (!input.trim() || !selectedModel) return
 
-    // 如果没有对话ID，创建新对话
+      // 如果没有对话ID，创建新对话
     let currentConversationId = conversationId
     if (!currentConversationId) {
       currentConversationId = await createConversation(input.substring(0, 20) + (input.length > 20 ? '...' : ''))
       setConversationId(currentConversationId)
+
+      // 更新URL参数，确保页面刷新时能保持对话状态
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.set('conversation', currentConversationId)
+      window.history.replaceState({}, '', newUrl.toString())
     }
 
     const userMessage: Message = {
@@ -176,7 +181,11 @@ export default function ChatPage() {
 
       // 如果是第一条消息，更新对话标题
       if (messages.length === 0) {
-        setConversationTitle(input.substring(0, 20) + (input.length > 20 ? '...' : ''))
+        const newTitle = input.substring(0, 20) + (input.length > 20 ? '...' : '')
+        setConversationTitle(newTitle)
+
+        // 保存标题到数据库
+        await updateConversationTitle(currentConversationId, newTitle)
       }
     } catch (error) {
       console.error('发送消息错误:', error)
@@ -258,6 +267,24 @@ export default function ChatPage() {
     }
   }
 
+  const updateConversationTitle = async (conversationId: string, title: string) => {
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title }),
+      })
+
+      if (!response.ok) {
+        console.error('更新对话标题失败')
+      }
+    } catch (error) {
+      console.error('更新对话标题错误:', error)
+    }
+  }
+
   const callAIAPI = async (userInput: string, modelData?: AIModel, conversationId?: string): Promise<string> => {
     if (!modelData) {
       throw new Error('未选择AI模型')
@@ -324,6 +351,12 @@ export default function ChatPage() {
   const clearConversation = () => {
     setMessages([])
     setConversationTitle('新对话')
+    setConversationId('')
+
+    // 清理URL参数
+    const newUrl = new URL(window.location.href)
+    newUrl.searchParams.delete('conversation')
+    window.history.replaceState({}, '', newUrl.toString())
   }
 
   const openMindmap = async () => {
@@ -372,7 +405,18 @@ export default function ChatPage() {
               <Input
                 value={conversationTitle}
                 onChange={(e) => setConversationTitle(e.target.value)}
+                onBlur={() => {
+                  if (conversationId && conversationTitle.trim()) {
+                    updateConversationTitle(conversationId, conversationTitle.trim())
+                  }
+                }}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.currentTarget.blur()
+                  }
+                }}
                 className="text-lg font-semibold border-none p-0 h-auto focus-visible:ring-0"
+                placeholder="对话标题"
               />
               <Badge variant="secondary">{messages.length} 条消息</Badge>
             </div>
