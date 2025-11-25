@@ -510,7 +510,8 @@ export default function ChatPage() {
                   messages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex items-start space-x-3 ${
+                      data-message-id={message.id}
+                      className={`flex items-start space-x-3 transition-all duration-300 ${
                         message.type === 'user' ? 'justify-end' : 'justify-start'
                       }`}
                     >

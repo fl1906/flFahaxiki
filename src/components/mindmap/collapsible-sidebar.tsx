@@ -211,15 +211,15 @@ export default function CollapsibleSidebar({ messages, conversationId, className
         <Button
           variant="outline"
           size="sm"
-          className={`absolute z-10 h-6 w-6 p-0 rounded-full shadow-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 transition-all duration-200 ${
+          className={`absolute z-50 h-6 w-6 p-0 rounded-full shadow-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 transition-all duration-200 ${
             isCollapsed ? '-left-3 top-6' : '-left-3 top-6'
           }`}
           onClick={toggleCollapse}
         >
           {isCollapsed ? (
-            <ChevronLeftIcon className="h-3 w-3" />
-          ) : (
             <ChevronRightIcon className="h-3 w-3" />
+          ) : (
+            <ChevronLeftIcon className="h-3 w-3" />
           )}
         </Button>
 
@@ -246,7 +246,7 @@ export default function CollapsibleSidebar({ messages, conversationId, className
             {/* 拖拽区域 - 优化版本 */}
             <div
               ref={resizeHandleRef}
-              className={`absolute -left-3 top-0 bottom-0 w-6 cursor-ew-resize z-30 flex items-center justify-center group transition-colors duration-75 ${
+              className={`absolute -left-3 top-12 bottom-0 w-6 cursor-ew-resize z-30 flex items-center justify-center group transition-colors duration-75 ${
                 isResizing ? 'bg-blue-50/50' : 'hover:bg-transparent'
               }`}
               onMouseDown={handleMouseDown}

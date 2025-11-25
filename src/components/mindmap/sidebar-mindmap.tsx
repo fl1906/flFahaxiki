@@ -15,8 +15,7 @@ import {
   User,
   ArrowRight,
   Circle,
-  Square,
-  Info
+  Square
 } from 'lucide-react'
 
 interface Message {
@@ -45,24 +44,14 @@ interface SidebarMindmapProps {
 export default function SidebarMindmap({ messages, conversationId, className = '' }: SidebarMindmapProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [mindmapData, setMindmapData] = useState<MindmapNode | null>(null)
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null)
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
-  const [tooltipContent, setTooltipContent] = useState<string>('')
-  const tooltipRef = useRef<HTMLDivElement>(null)
-  const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const aiSummaryCache = useRef<Map<string, string[]>>(new Map()) // 缓存AI生成的总结
 
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (tooltipTimeoutRef.current) {
-        clearTimeout(tooltipTimeoutRef.current)
-      }
-    }
-  }, [])
-
+  
   // 将消息转换为思维导图树结构 - 异步版本支持AI总结
   useEffect(() => {
+    console.log('[Mindmap] useEffect触发，消息数组:', messages)
+    console.log('[Mindmap] 消息详情:', messages.map(m => ({ id: m.id, type: m.type, contentLength: m.content.length, contentPreview: m.content.substring(0, 50) })))
+
     if (messages.length === 0) {
       setMindmapData(null)
       return
@@ -70,7 +59,7 @@ export default function SidebarMindmap({ messages, conversationId, className = '
 
     const generateMindmapAsync = async () => {
       // 生成总体对话总结
-      const overallSummary = await generateOverallSummary(messages)
+      const overallSummary = await generateOverallSummary(messages, conversationId)
 
       const rootNode: MindmapNode = {
         id: 'root',
@@ -112,7 +101,7 @@ export default function SidebarMindmap({ messages, conversationId, className = '
 
             try {
               // 调用AI生成简洁分步骤总结
-              const aiSteps = await extractSubtopics(nextMessage.content)
+              const aiSteps = await extractSubtopics(nextMessage.content, conversationId)
               aiSteps.forEach((step, stepIndex) => {
                 const subtopicNode: MindmapNode = {
                   id: `subtopic-${nextMessage.id}-${stepIndex}`,
@@ -188,16 +177,38 @@ export default function SidebarMindmap({ messages, conversationId, className = '
       : cleanContent
   }
 
+  // 生成简单的哈希值（支持UTF-8编码）
+  const generateSimpleHash = (str: string): string => {
+    let hash = 0
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash // 转换为32位整数
+    }
+    return Math.abs(hash).toString(16) // 转换为16进制字符串
+  }
+
   // 生成总体对话总结
-  const generateOverallSummary = async (messages: Message[]): Promise<{ title: string; content: string }> => {
+  const generateOverallSummary = async (messages: Message[], conversationId: string): Promise<{ title: string; content: string }> => {
     // 收集所有AI回复内容
     const aiResponses = messages
-      .filter(msg => msg.senderType === 'ai')
+      .filter(msg => msg.type === 'ai')
       .map(msg => msg.content)
       .join('\n\n')
 
-    // 生成内容哈希作为缓存键
-    const contentHash = btoa(aiResponses.substring(0, 100)).substring(0, 16)
+    console.log('[Mindmap Frontend] 消息总数:', messages.length)
+    console.log('[Mindmap Frontend] AI回复数量:', messages.filter(msg => msg.type === 'ai').length)
+    console.log('[Mindmap Frontend] AI内容长度:', aiResponses.length)
+    console.log('[Mindmap Frontend] AI内容预览:', aiResponses.substring(0, 100))
+
+    // 如果没有AI回复内容，直接返回默认总结
+    if (!aiResponses.trim()) {
+      console.log('[Mindmap Frontend] 没有AI回复，使用默认总结')
+      return generateFallbackSummary(messages)
+    }
+
+    // 使用安全的哈希函数生成缓存键（支持UTF-8）
+    const contentHash = generateSimpleHash(aiResponses.substring(0, 100))
     const cacheKey = `overall-${contentHash}`
 
     // 检查缓存
@@ -215,6 +226,7 @@ export default function SidebarMindmap({ messages, conversationId, className = '
         body: JSON.stringify({
           content: aiResponses,
           type: 'overall', // 标识这是总体总结
+          conversationId, // 传递对话ID以获取对应的AI模型
         }),
       })
 
@@ -241,7 +253,7 @@ export default function SidebarMindmap({ messages, conversationId, className = '
 
   // 生成备用标题
   const generateFallbackTitle = (messages: Message[]): string => {
-    const firstUserMessage = messages.find(msg => msg.senderType === 'user')
+    const firstUserMessage = messages.find(msg => msg.type === 'user')
     if (firstUserMessage) {
       const topic = extractTopic(firstUserMessage.content)
       return topic.length > 20 ? topic.substring(0, 20) + '...' : topic
@@ -252,12 +264,12 @@ export default function SidebarMindmap({ messages, conversationId, className = '
   // 生成备用总结
   const generateFallbackSummary = (messages: Message[]): { title: string; content: string } => {
     const userQuestions = messages
-      .filter(msg => msg.senderType === 'user')
+      .filter(msg => msg.type === 'user')
       .map(msg => extractTopic(msg.content))
       .slice(0, 3)
 
     const aiTopics = messages
-      .filter(msg => msg.senderType === 'ai')
+      .filter(msg => msg.type === 'ai')
       .flatMap(msg => {
         const topics = []
         // 提取加粗内容
@@ -281,9 +293,14 @@ export default function SidebarMindmap({ messages, conversationId, className = '
   }
 
   // 调用AI API生成简洁分步骤总结
-  const generateAISummary = async (content: string): Promise<string[]> => {
-    // 生成内容哈希作为缓存键
-    const contentHash = btoa(content.substring(0, 100)).substring(0, 16)
+  const generateAISummary = async (content: string, conversationId: string): Promise<string[]> => {
+    // 如果内容为空，直接返回默认步骤
+    if (!content || !content.trim()) {
+      return ['暂无明确步骤']
+    }
+
+    // 使用安全的哈希函数生成缓存键（支持UTF-8）
+    const contentHash = generateSimpleHash(content.substring(0, 100))
 
     // 检查缓存
     if (aiSummaryCache.current.has(contentHash)) {
@@ -296,7 +313,11 @@ export default function SidebarMindmap({ messages, conversationId, className = '
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({
+          content,
+          type: 'steps', // 标识这是分步骤总结
+          conversationId // 传递对话ID以获取对应的AI模型
+        }),
       })
 
       if (!response.ok) {
@@ -389,10 +410,10 @@ export default function SidebarMindmap({ messages, conversationId, className = '
   }
 
   // 提取子话题 - 优化版本，优先使用AI总结
-  const extractSubtopics = async (content: string): Promise<string[]> => {
+  const extractSubtopics = async (content: string, conversationId: string): Promise<string[]> => {
     // 优先调用AI生成简洁步骤
     try {
-      const aiSteps = await generateAISummary(content)
+      const aiSteps = await generateAISummary(content, conversationId)
       if (aiSteps.length > 0) {
         return aiSteps
       }
@@ -456,111 +477,66 @@ export default function SidebarMindmap({ messages, conversationId, className = '
     })
   }
 
-  // 格式化长文本内容
-  const formatTooltipContent = (content: string): string => {
-    // 清理内容，移除过多的Markdown符号
-    let formatted = content.replace(/#{1,6}\s+/g, '') // 移除标题标记
-    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '$1') // 移除加粗标记
-    formatted = formatted.replace(/\*([^*]+)\*/g, '$1') // 移除斜体标记
-    formatted = formatted.replace(/`([^`]+)`/g, '$1') // 移除代码标记
-    formatted = formatted.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // 移除链接，保留文本
-
-    // 限制最大长度
-    if (formatted.length > 500) {
-      formatted = formatted.substring(0, 500) + '...'
+  // 点击节点定位到对话位置
+  const handleNodeClick = (node: MindmapNode, event: React.MouseEvent) => {
+    // 如果点击的是Chevron图标，不触发定位功能
+    const target = event.target as HTMLElement
+    if (target.closest('svg')) {
+      return
     }
 
-    // 处理换行符
-    formatted = formatted.replace(/\n{3,}/g, '\n\n') // 减少连续换行
-    formatted = formatted.trim()
+    // 只有用户消息和AI回复节点才能定位
+    if (node.messageId && node.messageId !== 'root') {
+      // 寻找对应的对话消息元素
+      const messageElement = document.querySelector(`[data-message-id="${node.messageId}"]`)
+      if (messageElement) {
+        // 滚动到对应位置
+        messageElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        })
 
-    return formatted
-  }
-
-  // 处理鼠标悬停事件
-  const handleMouseEnter = (node: MindmapNode, event: React.MouseEvent) => {
-    // 清除之前的定时器
-    if (tooltipTimeoutRef.current) {
-      clearTimeout(tooltipTimeoutRef.current)
-    }
-
-    // 检查内容是否被截断
-    const isContentTruncated = node.fullContent.length > 50 ||
-                               node.fullContent !== node.content
-
-    if (isContentTruncated) {
-      // 添加延迟显示
-      tooltipTimeoutRef.current = setTimeout(() => {
-        setHoveredNode(node.id)
-        const formattedContent = formatTooltipContent(node.fullContent)
-        setTooltipContent(formattedContent)
-
-        // 计算悬浮提示位置
-        const rect = event.currentTarget.getBoundingClientRect()
-        const tooltipWidth = 320 // 预估悬浮提示宽度
-        const tooltipHeight = 250 // 预估悬浮提示高度
-
-        let x = rect.right + 8 // 默认显示在右侧
-        let y = rect.top
-
-        // 检查是否会超出屏幕边界
-        if (x + tooltipWidth > window.innerWidth - 20) {
-          x = rect.left - tooltipWidth - 8 // 显示在左侧
-        }
-
-        // 确保不超出屏幕顶部和底部
-        if (y < 10) {
-          y = 10
-        }
-        if (y + tooltipHeight > window.innerHeight - 10) {
-          y = window.innerHeight - tooltipHeight - 10
-        }
-
-        setTooltipPosition({ x, y })
-      }, 500) // 500ms 延迟
+        // 添加高亮效果
+        messageElement.classList.add('ring-2', 'ring-blue-500', 'ring-opacity-50', 'bg-blue-50', 'dark:bg-blue-900/20')
+        setTimeout(() => {
+          messageElement.classList.remove('ring-2', 'ring-blue-500', 'ring-opacity-50', 'bg-blue-50', 'dark:bg-blue-900/20')
+        }, 2000) // 2秒后移除高亮
+      }
     }
   }
 
-  const handleMouseLeave = () => {
-    // 清除定时器
-    if (tooltipTimeoutRef.current) {
-      clearTimeout(tooltipTimeoutRef.current)
-      tooltipTimeoutRef.current = null
-    }
-
-    // 添加延迟隐藏，避免快速切换时的闪烁
-    setTimeout(() => {
-      setHoveredNode(null)
-    }, 100)
-  }
-
+  
   // 渲染思维导图节点
   const renderNode = (node: MindmapNode): JSX.Element => {
     const isExpanded = expandedNodes.has(node.id)
     const hasChildren = node.children.length > 0
-    const isHovered = hoveredNode === node.id
     const Icon = node.type === 'user' ? User : Bot
-
-    // 检查内容是否被截断
-    const isContentTruncated = node.fullContent.length > 50 ||
-                               node.fullContent !== node.content
 
     return (
       <div key={node.id} className="select-none">
         <div
-          className={`flex items-center space-x-2 py-1 px-2 rounded cursor-pointer transition-colors relative group ${
-            isHovered ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-          }`}
-          onClick={() => hasChildren && toggleNode(node.id)}
-          onMouseEnter={(e) => handleMouseEnter(node, e)}
-          onMouseLeave={handleMouseLeave}
+          className={`flex items-center space-x-2 py-1 px-2 rounded cursor-pointer transition-colors group hover:bg-gray-100 dark:hover:bg-gray-800`}
+          onClick={(e) => handleNodeClick(node, e)}
           style={{ marginLeft: `${node.level * 16}px` }}
+          title={`点击定位到对话内容${node.type === 'user' ? '（用户提问）' : '（AI回复）'}`}
         >
           {hasChildren ? (
             isExpanded ? (
-              <ChevronDown className="h-3 w-3 text-gray-500 flex-shrink-0" />
+              <ChevronDown
+                className="h-3 w-3 text-gray-500 flex-shrink-0 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleNode(node.id)
+                }}
+              />
             ) : (
-              <ChevronRight className="h-3 w-3 text-gray-500 flex-shrink-0" />
+              <ChevronRight
+                className="h-3 w-3 text-gray-500 flex-shrink-0 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleNode(node.id)
+                }}
+              />
             )
           ) : (
             <div className="w-3 h-3 flex-shrink-0" />
@@ -573,11 +549,6 @@ export default function SidebarMindmap({ messages, conversationId, className = '
           <span className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 min-w-0">
             {node.content}
           </span>
-
-          {/* 内容截断指示器 */}
-          {isContentTruncated && (
-            <Info className="h-2.5 w-2.5 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-          )}
 
           {node.level === 0 && (
             <Brain className="h-3 w-3 text-purple-500 flex-shrink-0" />
@@ -634,44 +605,6 @@ export default function SidebarMindmap({ messages, conversationId, className = '
           </ScrollArea>
         </CardContent>
       </Card>
-
-      {/* 悬浮提示 */}
-      {hoveredNode && (
-        <div
-          ref={tooltipRef}
-          className="fixed z-[9999] p-4 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm rounded-xl shadow-2xl border border-gray-700 dark:border-gray-300 pointer-events-none animate-in fade-in-0 zoom-in-95 duration-200"
-          style={{
-            left: `${tooltipPosition.x}px`,
-            top: `${tooltipPosition.y}px`,
-            maxWidth: '320px',
-            maxHeight: '280px',
-            overflow: 'auto',
-            wordBreak: 'break-word'
-          }}
-        >
-          <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-700 dark:border-gray-300">
-            <div className="flex items-center space-x-2">
-              <Info className="h-3.5 w-3.5 text-blue-400 dark:text-blue-600" />
-              <span className="font-semibold text-blue-300 dark:text-blue-600">
-                完整内容
-              </span>
-            </div>
-            <div className="text-xs text-gray-400 dark:text-gray-500">
-              {tooltipContent.length} 字符
-            </div>
-          </div>
-
-          <div className="whitespace-pre-wrap leading-relaxed text-gray-100 dark:text-gray-800">
-            {tooltipContent}
-          </div>
-
-          {tooltipContent.length >= 500 && (
-            <div className="mt-2 pt-2 border-t border-gray-700 dark:border-gray-300 text-xs text-gray-400 dark:text-gray-500">
-              内容已截断显示前500字符
-            </div>
-          )}
-        </div>
-      )}
     </>
   )
 }

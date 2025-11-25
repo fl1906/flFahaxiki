@@ -253,6 +253,7 @@ export async function POST(request: NextRequest) {
     } else {
       // OpenAI兼容格式
       aiResponse = completion.choices?.[0]?.message?.content
+     console.log('fahaxiki', aiResponse)
     }
 
     if (!aiResponse) {
