@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import ExportDialog from '@/components/mindmap/export-dialog'
 import KeyboardShortcuts from '@/components/mindmap/keyboard-shortcuts'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -25,12 +24,10 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Settings,
   Loader2,
   Edit3,
   Trash2,
-  Keyboard,
-  MousePointer
+  Keyboard
 } from 'lucide-react'
 
 interface MindmapNode {
@@ -55,9 +52,12 @@ export default function MindmapPage() {
   const [error, setError] = useState<string | null>(null)
   const [editingNode, setEditingNode] = useState<string | null>(null)
   const [editingText, setEditingText] = useState('')
-  const [draggingNode, setDraggingNode] = useState<string | null>(null)
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
-  const [layoutMode, setLayoutMode] = useState<'auto' | 'tree' | 'radial' | 'compact' | 'spacious'>('auto')
+  const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal')
+
+  // 添加背景拖拽状态
+  const [isDraggingCanvas, setIsDraggingCanvas] = useState(false)
+  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 })
+  const [dragStartCanvas, setDragStartCanvas] = useState({ x: 0, y: 0, offsetX: 0, offsetY: 0 })
 
   // Default empty data structure
   const defaultMindmapData: MindmapNode = {
@@ -143,7 +143,9 @@ export default function MindmapPage() {
 
       if (response.ok) {
         const data = await response.json()
-        const layoutData = MindmapLayout.applyAutoLayout(data.structureData)
+        const layoutData = layoutMode === 'horizontal'
+          ? MindmapLayout.applyTreeLayout(data.structureData)
+          : MindmapLayout.applyVerticalTreeLayout(data.structureData)
         setMindmapData(layoutData)
         setMindmapTitle(data.title)
       } else {
@@ -177,7 +179,9 @@ export default function MindmapPage() {
 
       if (response.ok) {
         const data = await response.json()
-        const layoutData = MindmapLayout.applyAutoLayout(data.mindmap.structureData)
+        const layoutData = layoutMode === 'horizontal'
+            ? MindmapLayout.applyTreeLayout(data.mindmap.structureData)
+            : MindmapLayout.applyVerticalTreeLayout(data.mindmap.structureData)
         setMindmapData(layoutData)
         setMindmapTitle(data.mindmap.title)
       } else {
@@ -306,46 +310,38 @@ export default function MindmapPage() {
     toast.success(t('mindmap.nodeDeleteSuccess'))
   }
 
-  const handleMouseDown = (e: React.MouseEvent, nodeId: string) => {
-    e.preventDefault()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setDraggingNode(nodeId)
-    setDragStart({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    })
-  }
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!draggingNode || !dragStart || !mindmapData) return
-
-    const container = e.currentTarget.getBoundingClientRect()
-    const newX = (e.clientX - container.left - dragStart.x) / zoom
-    const newY = (e.clientY - container.top - dragStart.y) / zoom
-
-    const updateNodePosition = (node: MindmapNode): MindmapNode => {
-      if (node.id === draggingNode) {
-        return { ...node, x: newX, y: newY }
-      }
-      if (node.children) {
-        return {
-          ...node,
-          children: node.children.map(updateNodePosition)
-        }
-      }
-      return node
-    }
-
-    const updatedMindmapData = updateNodePosition(mindmapData)
-    setMindmapData(updatedMindmapData)
-  }
-
   const handleMouseUp = () => {
-    setDraggingNode(null)
-    setDragStart(null)
+    setIsDraggingCanvas(false)
   }
 
-  const applyLayout = (mode: typeof layoutMode) => {
+  // 背景拖拽处理函数
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    // 只有当点击在空白区域时才触发背景拖拽
+    if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('canvas-container')) {
+      setIsDraggingCanvas(true)
+      setDragStartCanvas({
+        x: e.clientX,
+        y: e.clientY,
+        offsetX: canvasOffset.x,
+        offsetY: canvasOffset.y
+      })
+      e.preventDefault()
+    }
+  }
+
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (isDraggingCanvas) {
+      const deltaX = e.clientX - dragStartCanvas.x
+      const deltaY = e.clientY - dragStartCanvas.y
+
+      setCanvasOffset({
+        x: dragStartCanvas.offsetX + deltaX,
+        y: dragStartCanvas.offsetY + deltaY
+      })
+    }
+  }
+
+  const applyLayout = () => {
     if (!mindmapData) return
 
     let updatedData: MindmapNode
@@ -385,93 +381,121 @@ export default function MindmapPage() {
   const renderNode = (node: MindmapNode, level: number = 0) => {
     const isSelected = selectedNode === node.id
     const isEditing = editingNode === node.id
-    const isDragging = draggingNode === node.id
-    const nodeSize = level === 0 ? 'w-32 h-16' : level === 1 ? 'w-28 h-14' : 'w-24 h-12'
-    const fontSize = level === 0 ? 'text-sm font-semibold' : level === 1 ? 'text-xs' : 'text-xs'
 
     // 确保 children 是一个数组
     const children = node.children || []
 
+    // 线性贪吃蛇结构节点尺寸和样式配置
+    const nodeConfig = {
+      0: { width: 160, height: 80, fontSize: 'text-sm font-semibold', iconSize: 'w-8 h-8', bgColor: '#dbeafe' }, // 根节点 - 蓝色
+      1: { width: 140, height: 70, fontSize: 'text-sm font-medium', iconSize: 'w-7 h-7', bgColor: '#dcfce7' }, // 问题节点 - 绿色
+      2: { width: 140, height: 70, fontSize: 'text-sm font-medium', iconSize: 'w-7 h-7', bgColor: '#fed7aa' }, // 回答节点 - 橙色
+    }
+
+    const config = nodeConfig[level as keyof typeof nodeConfig] || nodeConfig[2]
+
     return (
       <div key={node.id}>
-        {/* 连接线 */}
-        {children.map((child) => {
+        {/* 线性贪吃蛇连接线 - 带箭头的直线连接 */}
+        {children.map((child, index) => {
           const startX = node.x * zoom
           const startY = node.y * zoom
           const endX = child.x * zoom
           const endY = child.y * zoom
 
-          // 计算贝塞尔曲线控制点
-          const controlOffset = Math.abs(endX - startX) * 0.3
-          const controlX1 = startX + controlOffset
-          const controlY1 = startY
-          const controlX2 = endX - controlOffset
-          const controlY2 = endY
+          // 计算箭头方向
+          const angle = Math.atan2(endY - startY, endX - startX)
+          const arrowLength = 8
+          const arrowAngle = Math.PI / 6
+
+          const arrowX1 = endX - arrowLength * Math.cos(angle - arrowAngle)
+          const arrowY1 = endY - arrowLength * Math.sin(angle - arrowAngle)
+          const arrowX2 = endX - arrowLength * Math.cos(angle + arrowAngle)
+          const arrowY2 = endY - arrowLength * Math.sin(angle + arrowAngle)
+
+          // 根据节点类型设置颜色
+          const lineColor = child.id.startsWith('user_') || child.text.startsWith('Q:') ? '#10b981' : '#f97316'
 
           return (
             <svg
               key={`line-${node.id}-${child.id}`}
               className="absolute top-0 left-0 w-full h-full pointer-events-none"
-              style={{ zIndex: 0 }}
+              style={{ zIndex: 1 }}
             >
-              <defs>
-                <linearGradient id={`gradient-${node.id}-${child.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor={node.color || '#3b82f6'} stopOpacity="0.6" />
-                  <stop offset="100%" stopColor={child.color || '#10b981'} stopOpacity="0.6" />
-                </linearGradient>
-              </defs>
-              <path
-                d={`M ${startX} ${startY} C ${controlX1} ${controlY1}, ${controlX2} ${controlY2}, ${endX} ${endY}`}
-                stroke={`url(#gradient-${node.id}-${child.id})`}
-                strokeWidth="2"
-                fill="none"
+              {/* 主连接线 */}
+              <line
+                x1={startX}
+                y1={startY}
+                x2={endX}
+                y2={endY}
+                stroke={lineColor}
+                strokeWidth="3"
+                strokeOpacity="0.8"
+                strokeLinecap="round"
                 className="transition-all duration-300"
               />
-              {/* 添加箭头 */}
+
+              {/* 箭头 */}
+              <polygon
+                points={`${endX},${endY} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}`}
+                fill={lineColor}
+                fillOpacity="0.8"
+                className="transition-all duration-300"
+              />
+
+              {/* 连接点圆点 */}
               <circle
                 cx={endX}
                 cy={endY}
-                r="3"
-                fill={child.color || '#10b981'}
+                r="4"
+                fill={lineColor}
+                stroke="white"
+                strokeWidth="2"
                 className="transition-all duration-300"
               />
             </svg>
           )
         })}
 
-        {/* 节点 */}
+        {/* 线性贪吃蛇节点 */}
         <div
-          className={`absolute ${nodeSize} rounded-xl shadow-lg border-2 flex flex-col items-center justify-center text-center p-3 transition-all duration-300 ${
+          className={`absolute rounded-lg shadow-md border-2 flex flex-col items-center justify-center text-center p-3 transition-all duration-300 ${
             isSelected
-              ? 'border-blue-500 ring-4 ring-blue-200 shadow-xl scale-105'
-              : 'border-transparent hover:shadow-xl hover:scale-102'
-          } ${isDragging ? 'cursor-grabbing opacity-80 scale-110 shadow-2xl' : 'cursor-pointer'} ${
-            node.associatedMessageId ? 'bg-gradient-to-br' : 'bg-white'
-          } ${
-            level === 0 ? 'font-bold' : level === 1 ? 'font-medium' : 'font-normal'
+              ? 'ring-4 shadow-lg scale-105 z-20'
+              : 'hover:shadow-lg hover:scale-102'
+          } cursor-pointer ${
+            level === 0 ? 'font-bold' : 'font-medium'
           }`}
           style={{
-            left: `${node.x * zoom - (level === 0 ? 70 : level === 1 ? 60 : 50)}px`,
-            top: `${node.y * zoom - (level === 0 ? 35 : level === 1 ? 30 : 25)}px`,
-            zIndex: isDragging ? 30 : (isSelected ? 15 : level),
-            width: level === 0 ? '140px' : level === 1 ? '120px' : '100px',
-            height: level === 0 ? '70px' : level === 1 ? '60px' : '50px',
-            backgroundColor: node.color ? `${node.color}15` : (level === 0 ? '#f0f9ff' : '#ffffff'),
-            borderColor: node.color || (level === 0 ? '#3b82f6' : '#e5e7eb'),
-            backgroundImage: node.associatedMessageId
-              ? `linear-gradient(135deg, ${node.color || '#3b82f6'}15 0%, ${node.color || '#3b82f6'}05 100%)`
-              : undefined,
+            left: `${node.x * zoom - config.width / 2}px`,
+            top: `${node.y * zoom - config.height / 2}px`,
+            width: `${config.width}px`,
+            height: `${config.height}px`,
+            zIndex: isSelected ? 20 : (10 - level),
+            backgroundColor: config.bgColor,
+            // 根据节点类型设置边框颜色
+            borderColor: node.associatedMessageId
+              ? (node.id.startsWith('user_') || node.text.startsWith('Q:') ? '#10b981' : '#f97316')
+              : (level === 0 ? '#3b82f6' : '#6b7280'),
+            // 选中状态的边框和ring颜色
+            ...(isSelected && {
+              borderColor: node.associatedMessageId
+                ? (node.id.startsWith('user_') || node.text.startsWith('Q:') ? '#10b981' : '#f97316')
+                : '#3b82f6',
+              ringColor: node.associatedMessageId
+                ? (node.id.startsWith('user_') || node.text.startsWith('Q:') ? '#10b98120' : '#f9731620')
+                : '#3b82f620',
+            })
           }}
-          onClick={() => !isEditing && !isDragging && handleNodeClick(node.id)}
-          onDoubleClick={() => !isEditing && !isDragging && handleNodeDoubleClick(node)}
-          onMouseDown={(e) => !isEditing && handleMouseDown(e, node.id)}
+          onClick={() => !isEditing && handleNodeClick(node.id)}
+          onDoubleClick={() => !isEditing && handleNodeDoubleClick(node)}
         >
           {isEditing ? (
-            <div className="flex flex-col gap-1 w-full">
+            <div className="flex flex-col gap-2 w-full">
               <Input
                 value={editingText}
                 onChange={(e) => setEditingText(e.target.value)}
-                className="text-xs h-6 px-1"
+                className="text-xs h-8 px-2"
                 autoFocus
                 onBlur={handleNodeEditSave}
                 onKeyDown={(e) => {
@@ -482,38 +506,40 @@ export default function MindmapPage() {
                   }
                 }}
               />
-              <div className="flex gap-1">
-                <Button size="sm" className="h-4 text-xs px-1" onClick={handleNodeEditSave}>
+              <div className="flex gap-1 justify-center">
+                <Button size="sm" className="h-6 text-xs px-2" onClick={handleNodeEditSave}>
                   ✓
                 </Button>
-                <Button size="sm" variant="outline" className="h-4 text-xs px-1" onClick={handleNodeEditCancel}>
+                <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={handleNodeEditCancel}>
                   ✕
                 </Button>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-1">
-              {/* 节点图标 */}
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold ${
+            <div className="flex flex-col items-center gap-2 h-full justify-center">
+              {/* 节点图标 - 适配线性贪吃蛇结构 */}
+              <div className={`${config.iconSize} rounded-full flex items-center justify-center text-white text-sm font-bold ${
                 node.associatedMessageId
-                  ? (node.id.startsWith('msg_') && node.text.startsWith('Q:') ? 'bg-green-500' : 'bg-orange-500')
-                  : (level === 0 ? 'bg-blue-500' : level === 1 ? 'bg-purple-500' : 'bg-gray-500')
+                  ? (node.id.startsWith('user_') || node.text.startsWith('Q:') ? 'bg-green-500' : 'bg-orange-500')
+                  : (level === 0 ? 'bg-blue-500' : 'bg-gray-500')
               }`}>
                 {node.associatedMessageId
-                  ? (node.id.startsWith('msg_') && node.text.startsWith('Q:') ? 'Q' : 'A')
-                  : (level === 0 ? 'R' : level === 1 ? 'B' : 'N')
+                  ? (node.id.startsWith('user_') || node.text.startsWith('Q:') ? 'Q' : 'A')
+                  : (level === 0 ? '根' : '叶')
                 }
               </div>
+
               {/* 节点文本 */}
-              <span className={`${fontSize} leading-tight ${
+              <span className={`${config.fontSize} leading-tight text-center break-words max-w-full ${
                 node.associatedMessageId ? 'text-gray-700' : 'text-gray-800'
               } ${
                 level === 0 ? 'font-semibold' : level === 1 ? 'font-medium' : 'font-normal'
               }`}>
                 {node.text}
               </span>
-              {/* 节点类型标识 */}
-              {node.associatedMessageId && (
+
+              {/* 节点类型标识 - 适配线性贪吃蛇结构 */}
+              {node.associatedMessageId && level > 0 && (
                 <div className="text-xs text-gray-400">
                   {node.id.startsWith('msg_') && node.text.startsWith('Q:') ? t('mindmap.question') : t('mindmap.answer')}
                 </div>
@@ -522,7 +548,7 @@ export default function MindmapPage() {
           )}
         </div>
 
-        {/* 子节点 */}
+        {/* 递归渲染子节点 */}
         {children.map((child) => renderNode(child, level + 1))}
       </div>
     )
@@ -750,7 +776,9 @@ export default function MindmapPage() {
 
         {/* 思维导图画布 */}
         <div
-          className="flex-1 overflow-hidden relative"
+          className={`flex-1 overflow-hidden relative canvas-container ${
+            isDraggingCanvas ? 'cursor-grabbing' : 'cursor-grab'
+          }`}
           style={{
             backgroundImage: `
               radial-gradient(circle, #e5e7eb 1px, transparent 1px),
@@ -759,7 +787,8 @@ export default function MindmapPage() {
             backgroundSize: '20px 20px, 40px 40px',
             backgroundColor: '#ffffff'
           }}
-          onMouseMove={handleMouseMove}
+          onMouseDown={handleCanvasMouseDown}
+          onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         >
@@ -789,12 +818,13 @@ export default function MindmapPage() {
             <div
               className="relative w-full h-full"
               style={{
-                transform: `scale(${zoom})`,
-                transformOrigin: 'center center',
-                transition: 'transform 0.2s ease-in-out'
+                transform: `scale(${zoom}) translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
+                transformOrigin: '0 0',
+                transition: isDraggingCanvas ? 'none' : 'transform 0.2s ease-in-out',
+                cursor: isDraggingCanvas ? 'grabbing' : 'default'
               }}
             >
-              <div id="mindmap-canvas">
+              <div id="mindmap-canvas" className="min-w-[1200px] min-h-[800px]">
               {mindmapData && renderNode(mindmapData)}
             </div>
             </div>
