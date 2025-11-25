@@ -17,7 +17,7 @@ interface GenerateMindmapRequest {
   title?: string
 }
 
-// 基于对话消息生成思维导图
+// 基于对话消息生成线性贪吃蛇思维导图（根节点→问题1→回答1→问题2→回答2）
 function generateMindmapFromMessages(conversationId: string, conversationTitle: string): Promise<MindmapNode> {
   return new Promise(async (resolve, reject) => {
     try {
@@ -31,8 +31,8 @@ function generateMindmapFromMessages(conversationId: string, conversationTitle: 
         resolve({
           id: 'root',
           text: conversationTitle || '思维导图',
-          x: 400,
-          y: 300,
+          x: 100,
+          y: 100,
           children: []
         })
         return
@@ -42,37 +42,52 @@ function generateMindmapFromMessages(conversationId: string, conversationTitle: 
       const rootNode: MindmapNode = {
         id: 'root',
         text: conversationTitle || '思维导图',
-        x: 400,
-        y: 300,
+        x: 100,
+        y: 100,
         children: [],
         color: '#3b82f6'
       }
 
-      // 为每条消息创建一个节点
-      const angleStep = (2 * Math.PI) / messages.length
-      const radius = 200
+      // 创建线性贪吃蛇结构
+      let lastNode: MindmapNode = rootNode
+      let messageIndex = 0
 
-      messages.forEach((message, index) => {
-        const angle = angleStep * index
-        const x = rootNode.x + Math.cos(angle) * radius
-        const y = rootNode.y + Math.sin(angle) * radius
+      for (const message of messages) {
+        const nodeText = truncateText(message.content, 30)
 
-        const nodeText = message.senderType === 'user'
-          ? `Q: ${truncateText(message.content, 20)}`
-          : `A: ${truncateText(message.content, 20)}`
+        if (message.senderType === 'user') {
+          // 用户提问节点
+          const userNode: MindmapNode = {
+            id: `user_${message.id}`,
+            text: `Q: ${nodeText}`,
+            x: 0, // 位置由布局算法决定
+            y: 0, // 位置由布局算法决定
+            children: [],
+            color: '#10b981',
+            associatedMessageId: message.id
+          }
 
-        const messageNode: MindmapNode = {
-          id: `msg_${message.id}`,
-          text: nodeText,
-          x: x,
-          y: y,
-          children: [],
-          color: message.senderType === 'user' ? '#10b981' : '#f59e0b',
-          associatedMessageId: message.id
+          // 将用户问题添加到前一个节点的子节点中
+          lastNode.children.push(userNode)
+          lastNode = userNode
+          messageIndex++
+        } else {
+          // AI回复节点
+          const aiNode: MindmapNode = {
+            id: `ai_${message.id}`,
+            text: `A: ${nodeText}`,
+            x: 0, // 位置由布局算法决定
+            y: 0, // 位置由布局算法决定
+            children: [],
+            color: '#f59e0b',
+            associatedMessageId: message.id
+          }
+
+          // 将AI回复添加到前一个节点（用户问题）的子节点中
+          lastNode.children.push(aiNode)
+          lastNode = aiNode
         }
-
-        rootNode.children.push(messageNode)
-      })
+      }
 
       resolve(rootNode)
 
