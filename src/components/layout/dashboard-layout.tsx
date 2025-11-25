@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { LanguageToggle } from '@/components/ui/language-toggle'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,6 +39,7 @@ interface UserData {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter()
+  const { t } = useLanguage()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [userData, setUserData] = useState<UserData | null>(null)
   const [userLoading, setUserLoading] = useState(true)
@@ -63,11 +66,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }, [])
 
   const menuItems = [
-    { icon: BarChart3, label: '首页', href: '/' },
-    { icon: MessageSquare, label: '对话界面', href: '/chat' },
-    { icon: Brain, label: '思维导图', href: '/mindmap' },
-    { icon: History, label: '历史对话', href: '/history' },
-    { icon: Settings, label: '设置', href: '/settings' },
+    { icon: BarChart3, label: t('nav.home'), href: '/' },
+    { icon: MessageSquare, label: t('nav.chat'), href: '/chat' },
+    { icon: Brain, label: t('nav.mindmap'), href: '/mindmap' },
+    { icon: History, label: t('nav.history'), href: '/history' },
+    { icon: Settings, label: t('nav.settings'), href: '/settings' },
   ]
 
   const handleLogout = async () => {
@@ -130,20 +133,20 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <div className="text-sm font-medium text-gray-900 truncate">
                   {userLoading ? (
                     <div className="animate-pulse bg-gray-200 h-4 w-20 rounded" />
                   ) : (
                     userData?.nickname || userData?.username || '用户'
                   )}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
+                </div>
+                <div className="text-xs text-gray-500 truncate">
                   {userLoading ? (
                     <div className="animate-pulse bg-gray-200 h-3 w-24 rounded mt-1" />
                   ) : (
                     userData?.email
                   )}
-                </p>
+                </div>
               </div>
             </div>
             <Button
@@ -173,11 +176,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <Menu className="h-4 w-4" />
               </Button>
               <h2 className="text-lg font-semibold text-gray-900">
-                仪表盘
+                {t('nav.dashboard')}
               </h2>
             </div>
             <div className="flex items-center space-x-4">
               <ThemeToggle />
+              <LanguageToggle />
               <Button variant="ghost" size="sm">
                 <User className="h-4 w-4" />
               </Button>

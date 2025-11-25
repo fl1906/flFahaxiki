@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { 
   Plus, 
   Edit, 
@@ -42,6 +43,7 @@ interface AIModel {
 }
 
 export default function SettingsPage() {
+  const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState('models')
   const [showApiKey, setShowApiKey] = useState<{ [key: string]: boolean }>({})
   const [isAddModelOpen, setIsAddModelOpen] = useState(false)
@@ -211,15 +213,15 @@ export default function SettingsPage() {
         <div className="max-w-6xl mx-auto">
           {/* 页面头部 */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">设置</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{t('nav.settings')}</h1>
             <p className="text-gray-600">管理您的账户和系统配置</p>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="models">AI模型</TabsTrigger>
-              <TabsTrigger value="profile">个人信息</TabsTrigger>
-              <TabsTrigger value="appearance">外观设置</TabsTrigger>
+              <TabsTrigger value="models">{t('settings.aiModels')}</TabsTrigger>
+              <TabsTrigger value="profile">{t('settings.profile')}</TabsTrigger>
+              <TabsTrigger value="appearance">{t('settings.theme')}</TabsTrigger>
               <TabsTrigger value="shortcuts">快捷键</TabsTrigger>
             </TabsList>
 
@@ -229,23 +231,23 @@ export default function SettingsPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>AI模型管理</CardTitle>
+                      <CardTitle>{t('settings.modelManagement')}</CardTitle>
                       <CardDescription>
-                        添加、编辑和管理您的AI模型配置
+                        {t('settings.modelManagementDesc')}
                       </CardDescription>
                     </div>
                     <Dialog open={isAddModelOpen} onOpenChange={setIsAddModelOpen}>
                       <DialogTrigger asChild>
                         <Button>
                           <Plus className="h-4 w-4 mr-2" />
-                          添加模型
+                          {t('settings.addModel')}
                         </Button>
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>添加AI模型</DialogTitle>
+                          <DialogTitle>{t('settings.addAIModel')}</DialogTitle>
                           <DialogDescription>
-                            配置新的AI模型连接信息
+                            {t('settings.addAIModelDesc')}
                           </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">
@@ -300,10 +302,10 @@ export default function SettingsPage() {
                           </div>
                           <div className="flex justify-end space-x-2">
                             <Button variant="outline" onClick={() => setIsAddModelOpen(false)}>
-                              取消
+                              {t('common.cancel')}
                             </Button>
                             <Button onClick={handleAddModel}>
-                              添加模型
+                              {t('settings.addModel')}
                             </Button>
                           </div>
                         </div>
@@ -314,9 +316,9 @@ export default function SettingsPage() {
                     <Dialog open={!!editingModel} onOpenChange={(open) => !open && setEditingModel(null)}>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>编辑AI模型</DialogTitle>
+                          <DialogTitle>{t('settings.editAIModel')}</DialogTitle>
                           <DialogDescription>
-                            修改AI模型的配置信息
+                            {t('settings.editAIModelDesc')}
                           </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">

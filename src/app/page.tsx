@@ -17,6 +17,7 @@ import {
   Loader2
 } from 'lucide-react'
 import Link from 'next/link'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface Stat {
   title: string
@@ -36,15 +37,16 @@ interface Activity {
 }
 
 export default function Home() {
+  const { t } = useLanguage()
   const [stats, setStats] = useState<Stat[]>([])
   const [recentActivities, setRecentActivities] = useState<Activity[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   const quickActions = [
-    { title: '开始新对话', description: '与AI助手进行对话', icon: MessageSquare, href: '/chat', color: 'bg-blue-500' },
-    { title: '查看思维导图', description: '浏览和管理思维导图', icon: Brain, href: '/mindmap', color: 'bg-green-500' },
-    { title: '管理AI模型', description: '配置和添加AI模型', icon: Users, href: '/settings', color: 'bg-purple-500' },
-    { title: '历史对话', description: '查看历史对话记录', icon: FileText, href: '/history', color: 'bg-orange-500' },
+    { title: t('dashboard.startConversation'), description: t('dashboard.startConversationDesc'), icon: MessageSquare, href: '/chat', color: 'bg-blue-500' },
+    { title: t('dashboard.viewMindmap'), description: t('dashboard.viewMindmapDesc'), icon: Brain, href: '/mindmap', color: 'bg-green-500' },
+    { title: t('dashboard.manageModels'), description: t('dashboard.manageModelsDesc'), icon: Users, href: '/settings', color: 'bg-purple-500' },
+    { title: t('dashboard.conversationHistory'), description: t('dashboard.conversationHistoryDesc'), icon: FileText, href: '/history', color: 'bg-orange-500' },
   ]
 
   useEffect(() => {
@@ -59,28 +61,28 @@ export default function Home() {
           // 格式化统计数据
           const formattedStats: Stat[] = [
             {
-              title: '总对话数',
+              title: t('dashboard.totalConversations'),
               value: data.stats.totalConversations.toString(),
               icon: MessageSquare,
               change: data.stats.conversationChange,
               color: 'text-blue-600'
             },
             {
-              title: '思维导图',
+              title: t('dashboard.mindmaps'),
               value: data.stats.totalMindmaps.toString(),
               icon: Brain,
               change: data.stats.mindmapsChange,
               color: 'text-green-600'
             },
             {
-              title: 'AI模型',
+              title: t('dashboard.aiModels'),
               value: data.stats.totalModels.toString(),
               icon: Users,
               change: data.stats.modelsChange,
               color: 'text-purple-600'
             },
             {
-              title: '本周活跃',
+              title: t('dashboard.activeThisWeek'),
               value: `${data.stats.activeDays}天`,
               icon: TrendingUp,
               change: data.stats.activeDaysChange,
@@ -109,10 +111,10 @@ export default function Home() {
   }, [])
 
   const defaultStats: Stat[] = [
-    { title: '总对话数', value: '0', icon: MessageSquare, change: '0%', color: 'text-blue-600' },
-    { title: '思维导图', value: '0', icon: Brain, change: '0%', color: 'text-green-600' },
-    { title: 'AI模型', value: '0', icon: Users, change: '0%', color: 'text-purple-600' },
-    { title: '本周活跃', value: '0天', icon: TrendingUp, change: '0天', color: 'text-orange-600' },
+    { title: t('dashboard.totalConversations'), value: '0', icon: MessageSquare, change: '0%', color: 'text-blue-600' },
+    { title: t('dashboard.mindmaps'), value: '0', icon: Brain, change: '0%', color: 'text-green-600' },
+    { title: t('dashboard.aiModels'), value: '0', icon: Users, change: '0%', color: 'text-purple-600' },
+    { title: t('dashboard.activeThisWeek'), value: '0天', icon: TrendingUp, change: '0天', color: 'text-orange-600' },
   ]
 
   return (
@@ -120,8 +122,8 @@ export default function Home() {
       <div className="space-y-6">
         {/* 欢迎信息 */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">欢迎使用思导聊！</h1>
-          <p className="text-gray-600">开始您的AI对话与思维导图之旅</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('dashboard.welcome')}</h1>
+          <p className="text-gray-600">{t('dashboard.startJourney')}</p>
         </div>
 
         {/* 统计卡片 */}
@@ -143,9 +145,9 @@ export default function Home() {
                   <div className="text-2xl font-bold">{stat.value}</div>
                   <p className="text-xs text-gray-500">
                     <span className={stat.change && stat.change.startsWith('+') ? 'text-green-600' : 'text-gray-600'}>
-                      {stat.change || '暂无数据'}
+                      {stat.change || t('dashboard.noData')}
                     </span>
-                    {' '}较上周
+                    {' '}{t('dashboard.comparedToLastWeek')}
                   </p>
                 </CardContent>
               </Card>
@@ -155,7 +157,7 @@ export default function Home() {
 
         {/* 快捷入口 */}
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">快捷入口</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('dashboard.quickActions')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {quickActions.map((action) => (
               <Link key={action.title} href={action.href}>
@@ -178,10 +180,10 @@ export default function Home() {
         {/* 最近活动 */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">最近活动</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('dashboard.recentActivity')}</h2>
             <Link href="/history">
               <Button variant="outline" size="sm">
-                查看全部
+                {t('dashboard.viewAll')}
               </Button>
             </Link>
           </div>
@@ -221,10 +223,10 @@ export default function Home() {
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-gray-500">
                   <MessageSquare className="h-12 w-12 text-gray-300 mb-4" />
-                  <p className="text-lg font-medium mb-2">还没有活动记录</p>
-                  <p className="text-sm text-gray-400 mb-4">开始您的第一次对话或创建思维导图吧！</p>
+                  <p className="text-lg font-medium mb-2">{t('dashboard.noActivityYet')}</p>
+                  <p className="text-sm text-gray-400 mb-4">{t('dashboard.startFirstConversation')}</p>
                   <Link href="/chat">
-                    <Button>开始对话</Button>
+                    <Button>{t('dashboard.startChat')}</Button>
                   </Link>
                 </div>
               )}

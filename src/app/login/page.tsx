@@ -9,9 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { toast } from 'sonner'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { t } = useLanguage()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -44,14 +46,14 @@ export default function LoginPage() {
       })
 
       if (response.ok) {
-        toast.success('登录成功')
+        toast.success(t('app.loginSuccess'))
         router.push('/')
       } else {
         const data = await response.json()
-        setError(data.error || '登录失败')
+        setError(data.error || t('app.loginFailed'))
       }
     } catch (error) {
-      setError('网络错误，请稍后重试')
+      setError(t('app.networkError'))
     } finally {
       setIsLoading(false)
     }
@@ -63,7 +65,7 @@ export default function LoginPage() {
     setError('')
 
     if (registerData.password !== registerData.confirmPassword) {
-      setError('两次输入的密码不一致')
+      setError(t('app.passwordMismatch'))
       setIsLoading(false)
       return
     }
@@ -82,15 +84,15 @@ export default function LoginPage() {
       })
 
       if (response.ok) {
-        toast.success('注册成功，请登录')
+        toast.success(t('register.success'))
         // 切换到登录标签
         document.getElementById('login-tab')?.click()
       } else {
         const data = await response.json()
-        setError(data.error || '注册失败')
+        setError(data.error || t('app.registerFailed'))
       }
     } catch (error) {
-      setError('网络错误，请稍后重试')
+      setError(t('app.networkError'))
     } finally {
       setIsLoading(false)
     }
@@ -100,45 +102,45 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900">思导聊</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{t('app.title')}</h1>
           <p className="mt-2 text-sm text-gray-600">
-            AI对话与思维导图一体化生产力工具
+            {t('app.subtitle')}
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>欢迎使用思导聊</CardTitle>
+            <CardTitle>{t('app.welcome')}</CardTitle>
             <CardDescription>
-              登录或注册以开始使用AI对话和思维导图功能
+              {t('app.description')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="login" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login" id="login-tab">登录</TabsTrigger>
-                <TabsTrigger value="register">注册</TabsTrigger>
+                <TabsTrigger value="login" id="login-tab">{t('login.title')}</TabsTrigger>
+                <TabsTrigger value="register">{t('register.title')}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">邮箱</Label>
+                    <Label htmlFor="email">{t('auth.email')}</Label>
                     <Input
                       id="email"
                       type="email"
-                      placeholder="请输入邮箱"
+                      placeholder={t('login.emailPlaceholder')}
                       value={loginData.email}
                       onChange={(e) => setLoginData(prev => ({ ...prev, email: e.target.value }))}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">密码</Label>
+                    <Label htmlFor="password">{t('auth.password')}</Label>
                     <Input
                       id="password"
                       type="password"
-                      placeholder="请输入密码"
+                      placeholder={t('login.passwordPlaceholder')}
                       value={loginData.password}
                       onChange={(e) => setLoginData(prev => ({ ...prev, password: e.target.value }))}
                       required
@@ -150,7 +152,7 @@ export default function LoginPage() {
                     </Alert>
                   )}
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? '登录中...' : '登录'}
+                    {isLoading ? t('app.loggingIn') : t('login.loginButton')}
                   </Button>
                 </form>
               </TabsContent>
@@ -158,43 +160,43 @@ export default function LoginPage() {
               <TabsContent value="register">
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="username">用户名（可选）</Label>
+                    <Label htmlFor="username">{t('register.usernameOptional')}</Label>
                     <Input
                       id="username"
                       type="text"
-                      placeholder="请输入用户名"
+                      placeholder={t('register.usernamePlaceholder')}
                       value={registerData.username}
                       onChange={(e) => setRegisterData(prev => ({ ...prev, username: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-email">邮箱</Label>
+                    <Label htmlFor="register-email">{t('auth.email')}</Label>
                     <Input
                       id="register-email"
                       type="email"
-                      placeholder="请输入邮箱"
+                      placeholder={t('register.emailPlaceholder')}
                       value={registerData.email}
                       onChange={(e) => setRegisterData(prev => ({ ...prev, email: e.target.value }))}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-password">密码</Label>
+                    <Label htmlFor="register-password">{t('auth.password')}</Label>
                     <Input
                       id="register-password"
                       type="password"
-                      placeholder="请输入密码"
+                      placeholder={t('register.passwordPlaceholder')}
                       value={registerData.password}
                       onChange={(e) => setRegisterData(prev => ({ ...prev, password: e.target.value }))}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="confirm-password">确认密码</Label>
+                    <Label htmlFor="confirm-password">{t('auth.confirmPassword')}</Label>
                     <Input
                       id="confirm-password"
                       type="password"
-                      placeholder="请再次输入密码"
+                      placeholder={t('register.confirmPasswordAgain')}
                       value={registerData.confirmPassword}
                       onChange={(e) => setRegisterData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                       required
@@ -206,7 +208,7 @@ export default function LoginPage() {
                     </Alert>
                   )}
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? '注册中...' : '注册'}
+                    {isLoading ? t('register.loading') : t('register.registerButton')}
                   </Button>
                 </form>
               </TabsContent>

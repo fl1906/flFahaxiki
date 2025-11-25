@@ -29,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface Conversation {
   id: string
@@ -45,6 +46,7 @@ interface AIModel {
 }
 
 export default function HistoryPage() {
+  const { t } = useLanguage()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedModel, setSelectedModel] = useState('all')
   const [selectedConversations, setSelectedConversations] = useState<string[]>([])
@@ -125,17 +127,17 @@ export default function HistoryPage() {
   }
 
   const handleExport = () => {
-    alert(`导出功能开发中...`)
+    alert(t('history.exportFeatureInDevelopment'))
   }
 
   // 批量删除对话
   const handleDelete = async () => {
     if (selectedConversations.length === 0) {
-      alert('请先选择要删除的对话')
+      alert(t('history.pleaseSelectConversationsToDelete'))
       return
     }
 
-    const confirmed = confirm(`确定要删除选中的 ${selectedConversations.length} 个对话吗？此操作无法撤销，对话内容和相关思维导图将被永久删除。`)
+    const confirmed = confirm(t('history.confirmDelete').replace('${count}', selectedConversations.length.toString()))
     if (!confirmed) return
 
     setDeleting(true)
@@ -159,11 +161,11 @@ export default function HistoryPage() {
         fetchConversations()
       } else {
         const error = await response.json()
-        alert(`删除失败: ${error.error}`)
+        alert(t('history.deleteFailed').replace('${error}', error.error))
       }
     } catch (error) {
       console.error('删除对话错误:', error)
-      alert('删除失败，请稍后重试')
+      alert(t('history.deleteError'))
     } finally {
       setDeleting(false)
     }
@@ -171,7 +173,7 @@ export default function HistoryPage() {
 
   // 单个删除对话
   const handleSingleDelete = async (id: string, title: string) => {
-    const confirmed = confirm(`确定要删除对话"${title}"吗？此操作无法撤销，对话内容和相关思维导图将被永久删除。`)
+    const confirmed = confirm(t('history.confirmDeleteSingle').replace('${title}', title))
     if (!confirmed) return
 
     try {
@@ -180,16 +182,16 @@ export default function HistoryPage() {
       })
 
       if (response.ok) {
-        alert('对话删除成功')
+        alert(t('history.conversationDeleteSuccess'))
         // 重新获取对话列表
         fetchConversations()
       } else {
         const error = await response.json()
-        alert(`删除失败: ${error.error}`)
+        alert(t('history.deleteFailed').replace('${error}', error.error))
       }
     } catch (error) {
       console.error('删除对话错误:', error)
-      alert('删除失败，请稍后重试')
+      alert(t('history.deleteError'))
     }
   }
 
@@ -208,9 +210,9 @@ export default function HistoryPage() {
     const diff = now.getTime() - date.getTime()
     const days = Math.floor(diff / (1000 * 60 * 60 * 24))
     
-    if (days === 0) return '今天'
-    if (days === 1) return '昨天'
-    if (days < 7) return `${days}天前`
+    if (days === 0) return t('history.today')
+    if (days === 1) return t('history.yesterday')
+    if (days < 7) return t('history.xDaysAgo').replace('${days}', days.toString())
     return formatDate(date)
   }
 
@@ -220,13 +222,13 @@ export default function HistoryPage() {
         {/* 页面头部 */}
         <div className="flex items-center justify-between p-4 border-b bg-white">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">历史对话</h1>
-            <p className="text-gray-600">管理和查看您的所有对话记录</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t('history.title')}</h1>
+            <p className="text-gray-600">{t('history.subtitle')}</p>
           </div>
-          
+
           <Button onClick={() => window.location.href = '/chat'}>
             <Plus className="h-4 w-4 mr-2" />
-            新建对话
+            {t('history.newConversation')}
           </Button>
         </div>
 
@@ -237,7 +239,7 @@ export default function HistoryPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="搜索对话..."
+                placeholder={t('history.searchConversation')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 w-80"
@@ -247,10 +249,10 @@ export default function HistoryPage() {
             {/* 模型筛选 */}
             <Select value={selectedModel} onValueChange={setSelectedModel}>
               <SelectTrigger className="w-40">
-                <SelectValue placeholder="选择模型" />
+                <SelectValue placeholder={t('history.selectModel')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">全部模型</SelectItem>
+                <SelectItem value="all">{t('history.allModels')}</SelectItem>
                 {availableModels.map((model) => (
                   <SelectItem key={model.id} value={model.id}>
                     {model.modelName}
@@ -265,9 +267,9 @@ export default function HistoryPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="time">按时间</SelectItem>
-                <SelectItem value="title">按标题</SelectItem>
-                <SelectItem value="messages">按消息数</SelectItem>
+                <SelectItem value="time">{t('history.sortByTime')}</SelectItem>
+                <SelectItem value="title">{t('history.sortByTitle')}</SelectItem>
+                <SelectItem value="messages">{t('history.sortByMessages')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -276,11 +278,11 @@ export default function HistoryPage() {
           {selectedConversations.length > 0 && (
             <div className="flex items-center space-x-2">
               <span className="text-sm text-gray-600">
-                已选择 {selectedConversations.length} 项
+                {t('history.selectedItems').replace('${count}', selectedConversations.length.toString())}
               </span>
               <Button variant="outline" size="sm" onClick={handleExport}>
                 <Download className="h-4 w-4 mr-2" />
-                导出
+                {t('history.export')}
               </Button>
               <Button variant="outline" size="sm" onClick={handleDelete} disabled={deleting}>
                 {deleting ? (
@@ -288,7 +290,7 @@ export default function HistoryPage() {
                 ) : (
                   <Trash2 className="h-4 w-4 mr-2" />
                 )}
-                删除
+                {t('history.delete')}
               </Button>
             </div>
           )}
@@ -308,12 +310,12 @@ export default function HistoryPage() {
                         disabled={conversations.length === 0}
                       />
                     </TableHead>
-                    <TableHead>对话标题</TableHead>
-                    <TableHead>使用模型</TableHead>
-                    <TableHead>开始时间</TableHead>
-                    <TableHead>消息数量</TableHead>
-                    <TableHead>思维导图</TableHead>
-                    <TableHead className="w-20">操作</TableHead>
+                    <TableHead>{t('history.conversationTitle')}</TableHead>
+                    <TableHead>{t('history.usedModel')}</TableHead>
+                    <TableHead>{t('history.startTime')}</TableHead>
+                    <TableHead>{t('history.messageCount')}</TableHead>
+                    <TableHead>{t('history.mindmap')}</TableHead>
+                    <TableHead className="w-20">{t('history.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -322,7 +324,7 @@ export default function HistoryPage() {
                       <TableCell colSpan={7} className="text-center py-8">
                         <div className="flex items-center justify-center">
                           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mr-3" />
-                          正在加载对话列表...
+                          {t('history.loadingConversations')}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -366,10 +368,10 @@ export default function HistoryPage() {
                             className="flex items-center space-x-1 text-green-600 hover:text-green-800"
                           >
                             <Brain className="h-4 w-4" />
-                            <span className="text-sm">有</span>
+                            <span className="text-sm">{t('history.has')}</span>
                           </button>
                         ) : (
-                          <span className="text-gray-400 text-sm">无</span>
+                          <span className="text-gray-400 text-sm">{t('history.none')}</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -382,22 +384,22 @@ export default function HistoryPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => handleViewConversation(conversation.id)}>
                               <Eye className="h-4 w-4 mr-2" />
-                              查看对话
+                              {t('history.viewConversation')}
                             </DropdownMenuItem>
                             {conversation.hasMindmap && (
                               <DropdownMenuItem onClick={() => handleViewMindmap(conversation.id)}>
                                 <Brain className="h-4 w-4 mr-2" />
-                                查看思维导图
+                                {t('history.viewMindmap')}
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem>
                               <Download className="h-4 w-4 mr-2" />
-                              导出对话
+                              {t('history.exportConversation')}
                             </DropdownMenuItem>
                             <DropdownMenuItem>
                               <Share2 className="h-4 w-4 mr-2" />
-                              分享对话
+                              {t('history.shareConversation')}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -405,7 +407,7 @@ export default function HistoryPage() {
                               onClick={() => handleSingleDelete(conversation.id, conversation.title)}
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
-                              删除对话
+                              {t('history.deleteConversation')}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -419,11 +421,11 @@ export default function HistoryPage() {
               {!loading && conversations.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12">
                   <MessageSquare className="h-12 w-12 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">暂无对话记录</h3>
-                  <p className="text-gray-500 mb-4">开始您的第一个AI对话吧</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">{t('history.noConversationRecords')}</h3>
+                  <p className="text-gray-500 mb-4">{t('history.startFirstConversation')}</p>
                   <Button onClick={() => window.location.href = '/chat'}>
                     <Plus className="h-4 w-4 mr-2" />
-                    开始对话
+                    {t('history.startConversation')}
                   </Button>
                 </div>
               )}

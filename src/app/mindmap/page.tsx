@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import ExportDialog from '@/components/mindmap/export-dialog'
 import KeyboardShortcuts from '@/components/mindmap/keyboard-shortcuts'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { toast } from 'sonner'
 import { MindmapLayout } from '@/lib/mindmap-layout'
 import {
@@ -42,10 +43,11 @@ interface MindmapNode {
 }
 
 export default function MindmapPage() {
+  const { t } = useLanguage()
   const searchParams = useSearchParams()
   const conversationId = searchParams.get('conversation')
 
-  const [mindmapTitle, setMindmapTitle] = useState('思维导图')
+  const [mindmapTitle, setMindmapTitle] = useState(t('mindmap.mindmapTitle'))
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
   const [mindmapData, setMindmapData] = useState<MindmapNode | null>(null)
@@ -57,10 +59,10 @@ export default function MindmapPage() {
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
   const [layoutMode, setLayoutMode] = useState<'auto' | 'tree' | 'radial' | 'compact' | 'spacious'>('auto')
 
-  // 默认空数据结构
+  // Default empty data structure
   const defaultMindmapData: MindmapNode = {
     id: 'root',
-    text: '暂无数据',
+    text: t('mindmap.noData'),
     x: 400,
     y: 300,
     color: '#3b82f6',
@@ -149,8 +151,8 @@ export default function MindmapPage() {
         await generateMindmap()
       }
     } catch (error) {
-      console.error('加载思维导图失败:', error)
-      setError('加载思维导图失败，请尝试生成新的思维导图')
+      console.error('Failed to load mindmap:', error)
+      setError(t('mindmap.generatingMindmapFailed'))
       setMindmapData(defaultMindmapData)
     } finally {
       setIsLoading(false)
@@ -169,7 +171,7 @@ export default function MindmapPage() {
         },
         body: JSON.stringify({
           conversationId,
-          title: '对话思维导图'
+          title: t('mindmap.conversationMindmap')
         }),
       })
 
@@ -180,11 +182,11 @@ export default function MindmapPage() {
         setMindmapTitle(data.mindmap.title)
       } else {
         const errorData = await response.json()
-        throw new Error(errorData.error || '生成失败')
+        throw new Error(errorData.error || t('mindmap.generationFailure'))
       }
     } catch (error) {
-      console.error('生成思维导图失败:', error)
-      setError(error instanceof Error ? error.message : '生成思维导图失败')
+      console.error('Failed to generate mindmap:', error)
+      setError(error instanceof Error ? error.message : t('mindmap.generatingMindmapFailed'))
       setMindmapData(defaultMindmapData)
     } finally {
       setIsLoading(false)
@@ -232,7 +234,7 @@ export default function MindmapPage() {
     setMindmapData(updatedMindmapData)
     setEditingNode(null)
     setEditingText('')
-    toast.success('节点更新成功')
+    toast.success(t('mindmap.nodeUpdateSuccess'))
   }
 
   const handleNodeEditCancel = () => {
@@ -242,7 +244,7 @@ export default function MindmapPage() {
 
   const handleAddNode = () => {
     if (!selectedNode || !mindmapData) {
-      toast.error('请先选择一个父节点')
+      toast.error(t('mindmap.pleaseSelectParentNode'))
       return
     }
 
@@ -250,7 +252,7 @@ export default function MindmapPage() {
       if (node.id === selectedNode) {
         const newNode: MindmapNode = {
           id: `node_${Date.now()}`,
-          text: '新节点',
+          text: t('mindmap.newNode'),
           x: node.x + 150,
           y: node.y + (node.children?.length || 0) * 50,
           children: [],
@@ -272,17 +274,17 @@ export default function MindmapPage() {
 
     const updatedMindmapData = addNewNode(mindmapData)
     setMindmapData(updatedMindmapData)
-    toast.success('节点添加成功')
+    toast.success(t('mindmap.nodeAddSuccess'))
   }
 
   const handleDeleteNode = () => {
     if (!selectedNode || !mindmapData) {
-      toast.error('请先选择要删除的节点')
+      toast.error(t('mindmap.pleaseSelectNodeToDelete'))
       return
     }
 
     if (selectedNode === 'root') {
-      toast.error('不能删除根节点')
+      toast.error(t('mindmap.cannotDeleteRootNode'))
       return
     }
 
@@ -301,7 +303,7 @@ export default function MindmapPage() {
     const updatedMindmapData = deleteNode(mindmapData)
     setMindmapData(updatedMindmapData)
     setSelectedNode(null)
-    toast.success('节点删除成功')
+    toast.success(t('mindmap.nodeDeleteSuccess'))
   }
 
   const handleMouseDown = (e: React.MouseEvent, nodeId: string) => {
@@ -370,7 +372,14 @@ export default function MindmapPage() {
 
     setMindmapData(updatedData)
     setLayoutMode(mode)
-    toast.success(`已切换到${mode === 'auto' ? '智能' : mode === 'tree' ? '树形' : mode === 'radial' ? '径向' : mode === 'compact' ? '紧凑' : '宽松'}布局`)
+    const layoutNames = {
+      auto: t('mindmap.smartLayout'),
+      tree: t('mindmap.treeLayout'),
+      radial: t('mindmap.radialLayout'),
+      compact: t('mindmap.compactLayout'),
+      spacious: t('mindmap.spaciousLayout')
+    }
+    toast.success(t('mindmap.switchedToLayout').replace('${layout}', layoutNames[mode]))
   }
 
   const renderNode = (node: MindmapNode, level: number = 0) => {
@@ -506,7 +515,7 @@ export default function MindmapPage() {
               {/* 节点类型标识 */}
               {node.associatedMessageId && (
                 <div className="text-xs text-gray-400">
-                  {node.id.startsWith('msg_') && node.text.startsWith('Q:') ? '问题' : '回答'}
+                  {node.id.startsWith('msg_') && node.text.startsWith('Q:') ? t('mindmap.question') : t('mindmap.answer')}
                 </div>
               )}
             </div>
@@ -521,7 +530,7 @@ export default function MindmapPage() {
 
   const saveMindmap = async () => {
     if (!conversationId) {
-      toast.error('无法保存：缺少对话ID')
+      toast.error(t('mindmap.cannotSaveMissingConversationId'))
       return
     }
 
@@ -538,14 +547,14 @@ export default function MindmapPage() {
       })
 
       if (response.ok) {
-        toast.success('思维导图保存成功')
+        toast.success(t('mindmap.mindmapSaveSuccess'))
       } else {
         const errorData = await response.json()
-        throw new Error(errorData.error || '保存失败')
+        throw new Error(errorData.error || t('mindmap.saveFailed'))
       }
     } catch (error) {
-      console.error('保存思维导图失败:', error)
-      toast.error(error instanceof Error ? error.message : '保存失败')
+      console.error('Failed to save mindmap:', error)
+      toast.error(error instanceof Error ? error.message : t('mindmap.saveFailed'))
     }
   }
 
@@ -629,7 +638,7 @@ export default function MindmapPage() {
       : `/chat?conversation=${conversationId}&continueFrom=${selectedNode}`
 
     window.location.href = url
-    toast.success('正在基于此节点延伸对话...')
+    toast.success(t('mindmap.extendingConversation'))
   }
 
   return (
@@ -640,14 +649,14 @@ export default function MindmapPage() {
           <div className="flex items-center space-x-4">
             <Button variant="outline" size="sm" onClick={goToChat}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              返回对话
+              {t('mindmap.returnToChat')}
             </Button>
             <Input
               value={mindmapTitle}
               onChange={(e) => setMindmapTitle(e.target.value)}
               className="text-lg font-semibold border-none p-0 h-auto focus-visible:ring-0 w-64"
             />
-            <Badge variant="secondary">思维导图</Badge>
+            <Badge variant="secondary">{t('mindmap.mindmapTitle')}</Badge>
           </div>
           
           <div className="flex items-center space-x-2">
@@ -676,19 +685,19 @@ export default function MindmapPage() {
             >
               <Button variant="outline" size="sm" data-export-trigger>
                 <Download className="h-4 w-4 mr-2" />
-                导出
+                {t('mindmap.export')}
                 <span className="text-xs text-gray-400 ml-1">Ctrl+E</span>
               </Button>
             </ExportDialog>
 
             <Button variant="outline" size="sm" onClick={shareMindmap}>
               <Share2 className="h-4 w-4 mr-2" />
-              分享
+              {t('mindmap.share')}
             </Button>
 
             <Button variant="outline" size="sm" onClick={saveMindmap}>
               <Save className="h-4 w-4 mr-2" />
-              保存
+              {t('mindmap.save')}
               <span className="text-xs text-gray-400 ml-1">Ctrl+S</span>
             </Button>
 
@@ -701,32 +710,32 @@ export default function MindmapPage() {
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="sm" onClick={handleAddNode}>
               <Plus className="h-4 w-4 mr-2" />
-              添加节点
+              {t('mindmap.addNode')}
             </Button>
             <Button variant="outline" size="sm" onClick={handleDeleteNode} disabled={!selectedNode || selectedNode === 'root'}>
               <Trash2 className="h-4 w-4 mr-2" />
-              删除节点
+              {t('mindmap.deleteNode')}
             </Button>
             <Button variant="outline" size="sm" disabled={!selectedNode}>
               <Edit3 className="h-4 w-4 mr-2" />
-              编辑节点
+              {t('mindmap.editNode')}
             </Button>
 
             <Separator orientation="vertical" className="h-6" />
 
             {/* 布局选择器 */}
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">布局:</span>
+              <span className="text-sm text-gray-600">{t('mindmap.layout')}:</span>
               <Select value={layoutMode} onValueChange={(value: typeof layoutMode) => applyLayout(value)}>
                 <SelectTrigger className="w-32 h-8">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="auto">智能布局</SelectItem>
-                  <SelectItem value="tree">树形布局</SelectItem>
-                  <SelectItem value="radial">径向布局</SelectItem>
-                  <SelectItem value="compact">紧凑布局</SelectItem>
-                  <SelectItem value="spacious">宽松布局</SelectItem>
+                  <SelectItem value="auto">{t('mindmap.smartLayout')}</SelectItem>
+                  <SelectItem value="tree">{t('mindmap.treeLayout')}</SelectItem>
+                  <SelectItem value="radial">{t('mindmap.radialLayout')}</SelectItem>
+                  <SelectItem value="compact">{t('mindmap.compactLayout')}</SelectItem>
+                  <SelectItem value="spacious">{t('mindmap.spaciousLayout')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -734,7 +743,7 @@ export default function MindmapPage() {
 
           <div className="flex items-center space-x-2 text-sm text-gray-600">
             {selectedNode && (
-              <span>已选择节点: {selectedNode}</span>
+              <span>{t('mindmap.nodeSelected')}: {selectedNode}</span>
             )}
           </div>
         </div>
@@ -757,22 +766,22 @@ export default function MindmapPage() {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">生成思维导图中...</h3>
-              <p className="text-gray-500">正在分析对话内容并生成思维导图</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mindmap.loadingMindmap')}</h3>
+              <p className="text-gray-500">{t('mindmap.analyzingConversation')}</p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <Brain className="h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">生成失败</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mindmap.generationFailed')}</h3>
               <p className="text-gray-500 mb-4">{error}</p>
               <div className="space-x-2">
                 <Button onClick={generateMindmap} disabled={isLoading}>
                   <Brain className="h-4 w-4 mr-2" />
-                  重新生成
+                  {t('mindmap.regenerate')}
                 </Button>
                 <Button variant="outline" onClick={goToChat}>
                   <MessageSquare className="h-4 w-4 mr-2" />
-                  返回对话
+                  {t('mindmap.returnToChatBtn')}
                 </Button>
               </div>
             </div>
@@ -795,16 +804,16 @@ export default function MindmapPage() {
           {!isLoading && !error && mindmapData && (!mindmapData.children || mindmapData.children.length === 0) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center h-full text-center bg-white">
               <Brain className="h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">暂无思维导图内容</h3>
-              <p className="text-gray-500 mb-4">对话内容较少，无法生成有效的思维导图</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mindmap.noMindmapContent')}</h3>
+              <p className="text-gray-500 mb-4">{t('mindmap.insufficientContent')}</p>
               <div className="space-x-2">
                 <Button onClick={generateMindmap} disabled={isLoading}>
                   <Brain className="h-4 w-4 mr-2" />
-                  重新生成
+                  {t('mindmap.regenerate')}
                 </Button>
                 <Button variant="outline" onClick={goToChat}>
                   <MessageSquare className="h-4 w-4 mr-2" />
-                  返回对话
+                  {t('mindmap.returnToChatBtn')}
                 </Button>
               </div>
             </div>
