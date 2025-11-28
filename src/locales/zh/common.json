@@ -73,7 +73,19 @@
     "missingApiKey": "该模型缺少有效的API密钥，请在设置中配置",
     "cannotAnswer": "抱歉，我无法回答这个问题。",
     "defaultReplyIntro": "我理解您关于",
-    "defaultReplyContent": "的问题。让我为您详细分析一下这个话题... 首先，我们需要明确核心概念。其次，要考虑实际应用场景。最后，还要注意可能的限制和挑战。您希望我进一步详细解释哪个方面呢？"
+    "defaultReplyContent": "的问题。让我为您详细分析一下这个话题... 首先，我们需要明确核心概念。其次，要考虑实际应用场景。最后，还要注意可能的限制和挑战。您希望我进一步详细解释哪个方面呢？",
+    "regenerating": "正在重新生成...",
+    "selectAIModelRegenerate": "选择AI模型",
+    "questionContent": "问题内容",
+    "confirmRegenerate": "确认重新生成",
+    "regenerateSuccess": "回复已重新生成",
+    "regenerateError": "重新生成失败",
+    "missingInfoRegenerate": "缺少必要信息，无法重新生成",
+    "modelNotFound": "所选模型不存在",
+    "invalidResponse": "AI返回了无效的回复",
+    "conversationContentCopied": "对话内容已复制到剪贴板",
+    "regeneratingReply": "正在重新生成...",
+    "regenerateReply": "重新生成回复"
   },
   "mindmap": {
     "generateMindmap": "生成思维导图",

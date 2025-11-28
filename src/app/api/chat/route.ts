@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { message, modelId, modelEndpoint, modelName, conversationId } = await request.json()
+    const { message, modelId, modelEndpoint, modelName, conversationId, isRegeneration, messageIdToUpdate } = await request.json()
 
     if (!message || !modelId || !modelEndpoint) {
       return NextResponse.json(
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
             conversationId: conversationId
           },
           orderBy: {
-            createdAt: 'asc'
+            timestamp: 'asc'
           },
           take: 20, // 限制历史记录数量，避免prompt过长
           select: {
@@ -278,27 +278,48 @@ export async function POST(request: NextRequest) {
         })
 
         if (conversation) {
-          // 保存用户消息
-          await db.chatMessage.create({
-            data: {
-              conversationId,
-              senderType: 'user',
-              content: message,
-              timestamp: new Date(),
-              createdAt: new Date()
-            }
-          })
+          if (isRegeneration && messageIdToUpdate) {
+            // 重新生成模式：删除旧的AI回复消息，插入新的回复
+            await db.chatMessage.delete({
+              where: {
+                id: messageIdToUpdate,
+                conversationId: conversationId,
+                senderType: 'ai'
+              }
+            })
 
-          // 保存AI回复
-          await db.chatMessage.create({
-            data: {
-              conversationId,
-              senderType: 'ai',
-              content: aiResponse,
-              timestamp: new Date(),
-              createdAt: new Date()
-            }
-          })
+            // 插入新的AI回复消息
+            const newAiMessage = await db.chatMessage.create({
+              data: {
+                conversationId,
+                senderType: 'ai',
+                content: aiResponse,
+                timestamp: new Date(),
+                createdAt: new Date()
+              }
+            })
+          } else {
+            // 新对话模式：保存用户消息和AI回复
+            await db.chatMessage.create({
+              data: {
+                conversationId,
+                senderType: 'user',
+                content: message,
+                timestamp: new Date(),
+                createdAt: new Date()
+              }
+            })
+
+            await db.chatMessage.create({
+              data: {
+                conversationId,
+                senderType: 'ai',
+                content: aiResponse,
+                timestamp: new Date(),
+                createdAt: new Date()
+              }
+            })
+          }
         }
       } catch (dbError) {
         console.error('保存对话记录失败:', dbError)
@@ -309,7 +330,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       response: aiResponse,
       modelId: modelId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      newMessageId: isRegeneration && newAiMessage ? newAiMessage.id : null
     })
 
   } catch (error) {

@@ -1,21 +1,34 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import DashboardLayout from '@/components/layout/dashboard-layout'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import ExportDialog from '@/components/mindmap/export-dialog'
 import KeyboardShortcuts from '@/components/mindmap/keyboard-shortcuts'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { toast } from 'sonner'
 import { MindmapLayout } from '@/lib/mindmap-layout'
+import MarkdownRenderer from '@/components/ui/markdown-renderer'
 import {
   Brain,
-  Plus,
   Save,
   Download,
   Share2,
@@ -25,9 +38,14 @@ import {
   ZoomOut,
   Maximize2,
   Loader2,
-  Edit3,
+  Keyboard,
+  User,
+  Bot,
+  Plus,
   Trash2,
-  Keyboard
+  Edit3,
+  Move3d,
+  RefreshCw
 } from 'lucide-react'
 
 interface MindmapNode {
@@ -37,22 +55,38 @@ interface MindmapNode {
   y: number
   children: MindmapNode[]
   color?: string
+  associatedMessageId?: string
+  hiddenAnswer?: {
+    id: string
+    content: string
+    truncatedContent: string
+  }
 }
 
-export default function MindmapPage() {
+
+function MindmapPageContent() {
   const { t } = useLanguage()
   const searchParams = useSearchParams()
   const conversationId = searchParams.get('conversation')
 
-  const [mindmapTitle, setMindmapTitle] = useState(t('mindmap.mindmapTitle'))
+  const [mindmapTitle, setMindmapTitle] = useState('思维导图')
+  const [selectedAnswer, setSelectedAnswer] = useState<{ id: string; content: string; truncatedContent: string } | null>(null)
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
+  const [editingNode, setEditingNode] = useState<string | null>(null)
+  const [editingText, setEditingText] = useState<string>('')
   const [zoom, setZoom] = useState(1)
   const [mindmapData, setMindmapData] = useState<MindmapNode | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [editingNode, setEditingNode] = useState<string | null>(null)
-  const [editingText, setEditingText] = useState('')
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal')
+
+  // 重新生成回复相关状态
+  const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false)
+  const [selectedRegenerateModel, setSelectedRegenerateModel] = useState('')
+  const [isRegenerating, setIsRegenerating] = useState(false)
+  const [regenerationError, setRegenerationError] = useState<string | null>(null)
+  const [availableModels, setAvailableModels] = useState<any[]>([])
+  const [modelsLoading, setModelsLoading] = useState(true)
 
   // 添加背景拖拽状态
   const [isDraggingCanvas, setIsDraggingCanvas] = useState(false)
@@ -69,6 +103,27 @@ export default function MindmapPage() {
     children: []
   }
 
+  // 查找包含指定回答的问题节点
+  const findQuestionNodeByAnswerId = (answerId: string): any => {
+    if (!mindmapData) return null
+
+    const findNodeWithAnswer = (node: any): any => {
+      if (node.hiddenAnswer && node.hiddenAnswer.id === answerId) {
+        return node
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          const found = findNodeWithAnswer(child)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    return findNodeWithAnswer(mindmapData)
+  }
+
+  
   // 加载思维导图数据
   useEffect(() => {
     if (conversationId) {
@@ -94,45 +149,175 @@ export default function MindmapPage() {
         // 触发导出对话框
         document.querySelector('button[data-export-trigger]')?.click()
       }
-      // Delete: 删除选中节点
-      else if (e.key === 'Delete' && selectedNode && selectedNode !== 'root') {
-        handleDeleteNode()
+      // Escape: 取消选择对话详情
+      else if (e.key === 'Escape' && selectedAnswer) {
+        setSelectedAnswer(null)
       }
-      // Escape: 取消选择
-      else if (e.key === 'Escape') {
-        setSelectedNode(null)
-        setEditingNode(null)
-        setEditingText('')
-      }
-      // +: 添加节点
-      else if (e.key === '+' && selectedNode) {
-        handleAddNode()
-      }
-      // 空格 + Enter: 编辑选中节点
-      else if (e.key === 'Enter' && selectedNode && !editingNode) {
-        const node = (() => {
-          const findNode = (n: MindmapNode): MindmapNode | null => {
-            if (n.id === selectedNode) return n
-            if (n.children) {
-              for (const child of n.children) {
-                const found = findNode(child)
-                if (found) return found
-              }
-            }
-            return null
-          }
-          return mindmapData ? findNode(mindmapData) : null
-        })()
+      // 方向键：微调画布位置
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        // 只有在没有聚焦输入框时才响应方向键
+        if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+          e.preventDefault()
+          const step = e.shiftKey ? 50 : 20 // Shift + 方向键快速移动
 
-        if (node) {
-          handleNodeDoubleClick(node)
+          setCanvasOffset(prev => {
+            switch (e.key) {
+              case 'ArrowUp':
+                return { ...prev, y: prev.y + step }
+              case 'ArrowDown':
+                return { ...prev, y: prev.y - step }
+              case 'ArrowLeft':
+                return { ...prev, x: prev.x + step }
+              case 'ArrowRight':
+                return { ...prev, x: prev.x - step }
+              default:
+                return prev
+            }
+          })
         }
+      }
+      // 空格键 + Ctrl/Cmd: 重置画布
+      else if ((e.ctrlKey || e.metaKey) && e.key === ' ') {
+        e.preventDefault()
+        handleResetCanvas()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedNode, editingNode, mindmapData, conversationId, mindmapTitle])
+  }, [selectedAnswer, mindmapData, conversationId, mindmapTitle])
+
+  // 获取可用模型
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        setModelsLoading(true)
+        const response = await fetch('/api/models')
+        if (response.ok) {
+          const data = await response.json()
+          setAvailableModels(data.models || [])
+
+          // 如果有模型且未选择，自动选择第一个
+          if (data.models && data.models.length > 0 && !selectedRegenerateModel) {
+            setSelectedRegenerateModel(data.models[0].id)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch AI models:', error)
+        toast.error('获取模型列表失败')
+      } finally {
+        setModelsLoading(false)
+      }
+    }
+
+    fetchModels()
+  }, [selectedRegenerateModel])
+
+  // 重新生成回复处理函数
+  const handleRegenerateResponse = async () => {
+    if (!selectedRegenerateModel || !selectedAnswer || !conversationId) {
+      toast.error('缺少必要信息，无法重新生成')
+      return
+    }
+
+    setIsRegenerating(true)
+    setRegenerationError(null)
+
+    try {
+      // 获取问题节点
+      const questionNode = findQuestionNodeByAnswerId(selectedAnswer.id)
+      if (!questionNode) {
+        throw new Error('未找到对应的问题内容')
+      }
+
+      const questionText = questionNode.text.replace(/^问题\d+: /, '')
+
+      // 获取选中的模型信息
+      const selectedModelData = availableModels.find(model => model.id === selectedRegenerateModel)
+      if (!selectedModelData) {
+        throw new Error('所选模型不存在')
+      }
+
+      // 调用AI API重新生成回复
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cookie': document.cookie // 发送身份验证cookie
+        },
+        credentials: 'include', // 包含credentials以发送cookie
+        body: JSON.stringify({
+          message: questionText,
+          modelId: selectedRegenerateModel,
+          modelEndpoint: selectedModelData.endpoint,
+          modelName: selectedModelData.model,
+          conversationId,
+          isRegeneration: true,
+          messageIdToUpdate: selectedAnswer.id
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || '重新生成失败')
+      }
+
+      const data = await response.json()
+      const newAnswer = data.response
+      const newMessageId = data.newMessageId
+
+      if (!newAnswer) {
+        throw new Error('AI返回了无效的回复')
+      }
+
+      // 更新思维导图数据
+      const updatedMindmapData = updateNodeAnswer(selectedAnswer.id, newAnswer, newMessageId)
+      setMindmapData(updatedMindmapData)
+
+      // 更新选中的回答
+      setSelectedAnswer({
+        id: newMessageId || selectedAnswer.id,
+        content: newAnswer,
+        truncatedContent: newAnswer.substring(0, 200) + (newAnswer.length > 200 ? '...' : '')
+      })
+
+      setRegenerateDialogOpen(false)
+      toast.success('回复已重新生成')
+
+    } catch (error) {
+      console.error('重新生成失败:', error)
+      const errorMessage = error instanceof Error ? error.message : '重新生成失败，请稍后重试'
+      setRegenerationError(errorMessage)
+      toast.error(errorMessage)
+    } finally {
+      setIsRegenerating(false)
+    }
+  }
+
+  // 更新节点回答内容
+  const updateNodeAnswer = (answerId: string, newAnswer: string, newMessageId?: string): MindmapNode => {
+    const updateNode = (node: MindmapNode): MindmapNode => {
+      if (node.hiddenAnswer && node.hiddenAnswer.id === answerId) {
+        return {
+          ...node,
+          hiddenAnswer: {
+            ...node.hiddenAnswer,
+            id: newMessageId || node.hiddenAnswer.id,
+            content: newAnswer,
+            truncatedContent: newAnswer.substring(0, 200) + (newAnswer.length > 200 ? '...' : '')
+          }
+        }
+      }
+      if (node.children) {
+        return {
+          ...node,
+          children: node.children.map(updateNode)
+        }
+      }
+      return node
+    }
+    return updateNode(mindmapData || defaultMindmapData)
+  }
 
   const loadMindmapData = async () => {
     try {
@@ -209,41 +394,85 @@ export default function MindmapPage() {
     setZoom(1)
   }
 
+  const handleResetCanvas = () => {
+    setCanvasOffset({ x: 0, y: 0 })
+    setZoom(1)
+    toast.success('画布位置已重置')
+  }
+
   const handleNodeClick = (nodeId: string) => {
-    setSelectedNode(nodeId === selectedNode ? null : nodeId)
-  }
+    setSelectedNode(nodeId)
 
-  const handleNodeDoubleClick = (node: MindmapNode) => {
-    setEditingNode(node.id)
-    setEditingText(node.text)
-  }
-
-  const handleNodeEditSave = () => {
-    if (!editingNode || !mindmapData) return
-
-    const updateNodeText = (node: MindmapNode): MindmapNode => {
-      if (node.id === editingNode) {
-        return { ...node, text: editingText }
-      }
+    // 如果点击的是问题节点且有隐藏的回答，显示回答
+    const findNode = (node: MindmapNode): MindmapNode | null => {
+      if (node.id === nodeId) return node
       if (node.children) {
-        return {
-          ...node,
-          children: node.children.map(updateNodeText)
+        for (const child of node.children) {
+          const found = findNode(child)
+          if (found) return found
         }
       }
-      return node
+      return null
     }
 
-    const updatedMindmapData = updateNodeText(mindmapData)
-    setMindmapData(updatedMindmapData)
-    setEditingNode(null)
-    setEditingText('')
-    toast.success(t('mindmap.nodeUpdateSuccess'))
+    const clickedNode = mindmapData ? findNode(mindmapData) : null
+    if (clickedNode && clickedNode.hiddenAnswer) {
+      setSelectedAnswer(clickedNode.hiddenAnswer)
+    } else {
+      setSelectedAnswer(null)
+    }
   }
 
   const handleNodeEditCancel = () => {
     setEditingNode(null)
     setEditingText('')
+  }
+
+  const deleteNode = (node: MindmapNode, nodeIdToDelete: string): MindmapNode => {
+    if (node.id === nodeIdToDelete) {
+      // Don't delete root node
+      if (node.id === 'root') {
+        toast.error(t('mindmap.cannotDeleteRootNode'))
+        return node
+      }
+      // Return null to indicate node should be removed
+      return null as any
+    }
+
+    if (node.children) {
+      const filteredChildren = node.children
+        .map(child => deleteNode(child, nodeIdToDelete))
+        .filter(child => child !== null) as MindmapNode[]
+
+      return { ...node, children: filteredChildren }
+    }
+
+    return node
+  }
+
+  const handleDeleteNode = () => {
+    if (!selectedNode || !mindmapData) {
+      toast.error(t('mindmap.pleaseSelectNodeToDelete'))
+      return
+    }
+
+    const clickedNode = mindmapData ? findNode(mindmapData) : null
+    if (selectedNode === 'root') {
+      toast.error(t('mindmap.cannotDeleteRootNode'))
+      return
+    }
+
+    // 如果点击的是问题节点且有隐藏的回答，显示回答
+    if (clickedNode && clickedNode.hiddenAnswer) {
+      setSelectedAnswer(clickedNode.hiddenAnswer)
+    } else {
+      setSelectedAnswer(null)
+    }
+
+    const updatedMindmapData = deleteNode(mindmapData, selectedNode)
+    setMindmapData(updatedMindmapData)
+    setSelectedNode(null)
+    toast.success(t('mindmap.nodeDeleteSuccess'))
   }
 
   const handleAddNode = () => {
@@ -281,43 +510,19 @@ export default function MindmapPage() {
     toast.success(t('mindmap.nodeAddSuccess'))
   }
 
-  const handleDeleteNode = () => {
-    if (!selectedNode || !mindmapData) {
-      toast.error(t('mindmap.pleaseSelectNodeToDelete'))
-      return
-    }
-
-    if (selectedNode === 'root') {
-      toast.error(t('mindmap.cannotDeleteRootNode'))
-      return
-    }
-
-    const deleteNode = (node: MindmapNode): MindmapNode => {
-      if (node.children) {
-        return {
-          ...node,
-          children: node.children
-            .filter(child => child.id !== selectedNode)
-            .map(deleteNode)
-        }
-      }
-      return node
-    }
-
-    const updatedMindmapData = deleteNode(mindmapData)
-    setMindmapData(updatedMindmapData)
-    setSelectedNode(null)
-    toast.success(t('mindmap.nodeDeleteSuccess'))
-  }
-
   const handleMouseUp = () => {
     setIsDraggingCanvas(false)
+    // 恢复鼠标样式
+    document.body.style.cursor = 'default'
   }
 
   // 背景拖拽处理函数
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     // 只有当点击在空白区域时才触发背景拖拽
-    if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('canvas-container')) {
+    const target = e.target as HTMLElement
+    if (target === e.currentTarget ||
+        target.classList.contains('canvas-container') ||
+        target.closest('.canvas-container') === e.currentTarget) {
       setIsDraggingCanvas(true)
       setDragStartCanvas({
         x: e.clientX,
@@ -325,6 +530,8 @@ export default function MindmapPage() {
         offsetX: canvasOffset.x,
         offsetY: canvasOffset.y
       })
+      // 改变鼠标样式为抓取状态
+      document.body.style.cursor = 'grabbing'
       e.preventDefault()
     }
   }
@@ -338,217 +545,105 @@ export default function MindmapPage() {
         x: dragStartCanvas.offsetX + deltaX,
         y: dragStartCanvas.offsetY + deltaY
       })
+      e.preventDefault()
     }
   }
 
-  const applyLayout = () => {
+  const toggleLayoutMode = () => {
     if (!mindmapData) return
 
-    let updatedData: MindmapNode
-
-    switch (mode) {
-      case 'auto':
-        updatedData = MindmapLayout.applyAutoLayout(mindmapData)
-        break
-      case 'tree':
-        updatedData = MindmapLayout.applyTreeLayout(mindmapData)
-        break
-      case 'radial':
-        updatedData = MindmapLayout.applyRadialLayout(mindmapData)
-        break
-      case 'compact':
-        updatedData = MindmapLayout.applyCompactLayout(mindmapData)
-        break
-      case 'spacious':
-        updatedData = MindmapLayout.applySpaciousLayout(mindmapData)
-        break
-      default:
-        updatedData = mindmapData
-    }
+    const newMode = layoutMode === 'horizontal' ? 'vertical' : 'horizontal'
+    const updatedData = newMode === 'horizontal'
+      ? MindmapLayout.applyTreeLayout(mindmapData)
+      : MindmapLayout.applyVerticalTreeLayout(mindmapData)
 
     setMindmapData(updatedData)
-    setLayoutMode(mode)
-    const layoutNames = {
-      auto: t('mindmap.smartLayout'),
-      tree: t('mindmap.treeLayout'),
-      radial: t('mindmap.radialLayout'),
-      compact: t('mindmap.compactLayout'),
-      spacious: t('mindmap.spaciousLayout')
+    setLayoutMode(newMode)
+    toast.success(`切换到${newMode === 'horizontal' ? '水平' : '垂直'}布局`)
+  }
+
+  const updateNodeText = (nodeId: string, newText: string): MindmapNode => {
+    const updateNode = (node: MindmapNode): MindmapNode => {
+      if (node.id === nodeId) {
+        return { ...node, text: newText }
+      }
+      if (node.children) {
+        return {
+          ...node,
+          children: node.children.map(updateNode)
+        }
+      }
+      return node
     }
-    toast.success(t('mindmap.switchedToLayout').replace('${layout}', layoutNames[mode]))
+    return updateNode(mindmapData || defaultMindmapData)
+  }
+
+  const renderConnectionLines = (node: MindmapNode): JSX.Element[] => {
+    const lines: JSX.Element[] = []
+    const children = node.children || []
+
+    // 为每个子节点绘制连接线
+    children.forEach((child) => {
+      const startX = node.x * zoom
+      const startY = node.y * zoom
+      const endX = child.x * zoom
+      const endY = child.y * zoom
+
+      lines.push(
+        <line
+          key={`line-${node.id}-${child.id}`}
+          x1={startX}
+          y1={startY}
+          x2={endX}
+          y2={endY}
+          stroke="#3b82f6"
+          strokeWidth="3"
+          className="transition-all hover:stroke-blue-600"
+        />
+      )
+
+      // 递归处理子节点的连接线
+      lines.push(...renderConnectionLines(child))
+    })
+
+    return lines
   }
 
   const renderNode = (node: MindmapNode, level: number = 0) => {
-    const isSelected = selectedNode === node.id
-    const isEditing = editingNode === node.id
-
-    // 确保 children 是一个数组
     const children = node.children || []
-
-    // 线性贪吃蛇结构节点尺寸和样式配置
-    const nodeConfig = {
-      0: { width: 160, height: 80, fontSize: 'text-sm font-semibold', iconSize: 'w-8 h-8', bgColor: '#dbeafe' }, // 根节点 - 蓝色
-      1: { width: 140, height: 70, fontSize: 'text-sm font-medium', iconSize: 'w-7 h-7', bgColor: '#dcfce7' }, // 问题节点 - 绿色
-      2: { width: 140, height: 70, fontSize: 'text-sm font-medium', iconSize: 'w-7 h-7', bgColor: '#fed7aa' }, // 回答节点 - 橙色
-    }
-
-    const config = nodeConfig[level as keyof typeof nodeConfig] || nodeConfig[2]
 
     return (
       <div key={node.id}>
-        {/* 线性贪吃蛇连接线 - 带箭头的直线连接 */}
-        {children.map((child, index) => {
-          const startX = node.x * zoom
-          const startY = node.y * zoom
-          const endX = child.x * zoom
-          const endY = child.y * zoom
-
-          // 计算箭头方向
-          const angle = Math.atan2(endY - startY, endX - startX)
-          const arrowLength = 8
-          const arrowAngle = Math.PI / 6
-
-          const arrowX1 = endX - arrowLength * Math.cos(angle - arrowAngle)
-          const arrowY1 = endY - arrowLength * Math.sin(angle - arrowAngle)
-          const arrowX2 = endX - arrowLength * Math.cos(angle + arrowAngle)
-          const arrowY2 = endY - arrowLength * Math.sin(angle + arrowAngle)
-
-          // 根据节点类型设置颜色
-          const lineColor = child.id.startsWith('user_') || child.text.startsWith('Q:') ? '#10b981' : '#f97316'
-
-          return (
-            <svg
-              key={`line-${node.id}-${child.id}`}
-              className="absolute top-0 left-0 w-full h-full pointer-events-none"
-              style={{ zIndex: 1 }}
-            >
-              {/* 主连接线 */}
-              <line
-                x1={startX}
-                y1={startY}
-                x2={endX}
-                y2={endY}
-                stroke={lineColor}
-                strokeWidth="3"
-                strokeOpacity="0.8"
-                strokeLinecap="round"
-                className="transition-all duration-300"
-              />
-
-              {/* 箭头 */}
-              <polygon
-                points={`${endX},${endY} ${arrowX1},${arrowY1} ${arrowX2},${arrowY2}`}
-                fill={lineColor}
-                fillOpacity="0.8"
-                className="transition-all duration-300"
-              />
-
-              {/* 连接点圆点 */}
-              <circle
-                cx={endX}
-                cy={endY}
-                r="4"
-                fill={lineColor}
-                stroke="white"
-                strokeWidth="2"
-                className="transition-all duration-300"
-              />
-            </svg>
-          )
-        })}
-
-        {/* 线性贪吃蛇节点 */}
         <div
-          className={`absolute rounded-lg shadow-md border-2 flex flex-col items-center justify-center text-center p-3 transition-all duration-300 ${
-            isSelected
-              ? 'ring-4 shadow-lg scale-105 z-20'
-              : 'hover:shadow-lg hover:scale-102'
-          } cursor-pointer ${
-            level === 0 ? 'font-bold' : 'font-medium'
+          className={`absolute rounded-xl shadow-lg border-2 flex flex-col items-center justify-center text-center p-4 cursor-pointer transition-all hover:shadow-xl hover:scale-105 ${
+            selectedNode === node.id ? 'ring-3 ring-blue-400 ring-opacity-50' : ''
           }`}
           style={{
-            left: `${node.x * zoom - config.width / 2}px`,
-            top: `${node.y * zoom - config.height / 2}px`,
-            width: `${config.width}px`,
-            height: `${config.height}px`,
-            zIndex: isSelected ? 20 : (10 - level),
-            backgroundColor: config.bgColor,
-            // 根据节点类型设置边框颜色
-            borderColor: node.associatedMessageId
-              ? (node.id.startsWith('user_') || node.text.startsWith('Q:') ? '#10b981' : '#f97316')
-              : (level === 0 ? '#3b82f6' : '#6b7280'),
-            // 选中状态的边框和ring颜色
-            ...(isSelected && {
-              borderColor: node.associatedMessageId
-                ? (node.id.startsWith('user_') || node.text.startsWith('Q:') ? '#10b981' : '#f97316')
-                : '#3b82f6',
-              ringColor: node.associatedMessageId
-                ? (node.id.startsWith('user_') || node.text.startsWith('Q:') ? '#10b98120' : '#f9731620')
-                : '#3b82f620',
-            })
+            left: `${node.x * zoom - 100}px`,
+            top: `${node.y * zoom - 45}px`,
+            width: '200px',
+            height: '90px',
+            zIndex: 10 - level,
+            backgroundColor: level === 0 ? '#dbeafe' : '#dcfce7',
+            borderColor: level === 0 ? '#3b82f6' : '#10b981',
+            boxShadow: level === 0 ? '0 4px 20px rgba(59, 130, 246, 0.3)' : '0 4px 15px rgba(16, 185, 129, 0.2)',
           }}
-          onClick={() => !isEditing && handleNodeClick(node.id)}
-          onDoubleClick={() => !isEditing && handleNodeDoubleClick(node)}
+          onClick={() => handleNodeClick(node.id)}
         >
-          {isEditing ? (
-            <div className="flex flex-col gap-2 w-full">
-              <Input
-                value={editingText}
-                onChange={(e) => setEditingText(e.target.value)}
-                className="text-xs h-8 px-2"
-                autoFocus
-                onBlur={handleNodeEditSave}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleNodeEditSave()
-                  } else if (e.key === 'Escape') {
-                    handleNodeEditCancel()
-                  }
-                }}
-              />
-              <div className="flex gap-1 justify-center">
-                <Button size="sm" className="h-6 text-xs px-2" onClick={handleNodeEditSave}>
-                  ✓
-                </Button>
-                <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={handleNodeEditCancel}>
-                  ✕
-                </Button>
-              </div>
+          <div className="flex flex-col items-center gap-2 h-full justify-center">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-md ${
+              level === 0 ? 'bg-blue-500' : 'bg-green-500'
+            }`}>
+              {level === 0 ? '根' : 'Q'}
             </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 h-full justify-center">
-              {/* 节点图标 - 适配线性贪吃蛇结构 */}
-              <div className={`${config.iconSize} rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                node.associatedMessageId
-                  ? (node.id.startsWith('user_') || node.text.startsWith('Q:') ? 'bg-green-500' : 'bg-orange-500')
-                  : (level === 0 ? 'bg-blue-500' : 'bg-gray-500')
-              }`}>
-                {node.associatedMessageId
-                  ? (node.id.startsWith('user_') || node.text.startsWith('Q:') ? 'Q' : 'A')
-                  : (level === 0 ? '根' : '叶')
-                }
-              </div>
-
-              {/* 节点文本 */}
-              <span className={`${config.fontSize} leading-tight text-center break-words max-w-full ${
-                node.associatedMessageId ? 'text-gray-700' : 'text-gray-800'
-              } ${
-                level === 0 ? 'font-semibold' : level === 1 ? 'font-medium' : 'font-normal'
-              }`}>
-                {node.text}
-              </span>
-
-              {/* 节点类型标识 - 适配线性贪吃蛇结构 */}
-              {node.associatedMessageId && level > 0 && (
-                <div className="text-xs text-gray-400">
-                  {node.id.startsWith('msg_') && node.text.startsWith('Q:') ? t('mindmap.question') : t('mindmap.answer')}
-                </div>
-              )}
-            </div>
-          )}
+            <span className="text-sm font-semibold leading-tight text-center break-words max-w-full text-gray-800 line-clamp-2">
+              {node.text}
+            </span>
+            {node.hiddenAnswer && level > 0 && (
+              <div className="text-xs text-blue-500 font-medium">💬 点击查看回答</div>
+            )}
+          </div>
         </div>
-
-        {/* 递归渲染子节点 */}
         {children.map((child) => renderNode(child, level + 1))}
       </div>
     )
@@ -622,42 +717,35 @@ export default function MindmapPage() {
     }
   }
 
-  const getNodeAssociatedMessage = (nodeId: string): string | null => {
-    if (!mindmapData) return null
+  // 定位到聊天页面的消息
+  const locateToMessage = (messageId: string, forceRefresh: boolean = false) => {
+    // 跳转到聊天页面并定位到指定消息
+    if (conversationId) {
+      const refreshParam = forceRefresh ? '&refresh=true' : ''
+      window.location.href = `/chat?conversation=${conversationId}&highlight=${messageId}${refreshParam}`
+    } else {
+      window.location.href = '/chat'
+    }
+  }
 
-    const findNode = (node: MindmapNode): MindmapNode | null => {
+  const getNodeAssociatedMessage = (node: any): string | null => {
+    if (!mindmapData || !node.associatedMessageId) return null
+
+    const findNodeById = (nodeId: string, node: MindmapNode): MindmapNode | null => {
+      if (!node) return null
       if (node.id === nodeId) return node
       if (node.children) {
         for (const child of node.children) {
-          const found = findNode(child)
+          const found = findNodeById(nodeId, child)
           if (found) return found
         }
       }
       return null
     }
-
-    const node = findNode(mindmapData)
-    return node?.associatedMessageId || null
+    return findNodeById(node.associatedMessageId, mindmapData)
   }
 
-  const handleNodeToConversation = () => {
-    if (!selectedNode) return
-
-    const messageId = getNodeAssociatedMessage(selectedNode)
-    if (messageId) {
-      goToChat(messageId)
-    } else {
-      toast.info('该节点未关联具体消息，将返回对话首页')
-      goToChat()
-    }
-  }
-
-  const handleNodeExtendConversation = () => {
-    if (!selectedNode || !conversationId) {
-      toast.error('无法延伸对话：缺少必要信息')
-      return
-    }
-
+  const handleContinueConversation = () => {
     const messageId = getNodeAssociatedMessage(selectedNode)
     const url = messageId
       ? `/chat?conversation=${conversationId}&continueFrom=${messageId}`
@@ -667,6 +755,7 @@ export default function MindmapPage() {
     toast.success(t('mindmap.extendingConversation'))
   }
 
+  // 主组件返回语句
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
@@ -684,7 +773,7 @@ export default function MindmapPage() {
             />
             <Badge variant="secondary">{t('mindmap.mindmapTitle')}</Badge>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             {/* 缩放控制 */}
             <div className="flex items-center space-x-1 border rounded-md p-1">
@@ -697,8 +786,11 @@ export default function MindmapPage() {
               <Button variant="ghost" size="sm" onClick={handleZoomIn}>
                 <ZoomIn className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleResetZoom}>
+              <Button variant="ghost" size="sm" onClick={handleResetZoom} title="重置缩放">
                 <Maximize2 className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleResetCanvas} title="重置画布位置">
+                <Move3d className="h-4 w-4" />
               </Button>
             </div>
 
@@ -742,274 +834,362 @@ export default function MindmapPage() {
               <Trash2 className="h-4 w-4 mr-2" />
               {t('mindmap.deleteNode')}
             </Button>
-            <Button variant="outline" size="sm" disabled={!selectedNode}>
-              <Edit3 className="h-4 w-4 mr-2" />
-              {t('mindmap.editNode')}
-            </Button>
 
             <Separator orientation="vertical" className="h-6" />
 
-            {/* 布局选择器 */}
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600">{t('mindmap.layout')}:</span>
-              <Select value={layoutMode} onValueChange={(value: typeof layoutMode) => applyLayout(value)}>
-                <SelectTrigger className="w-32 h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">{t('mindmap.smartLayout')}</SelectItem>
-                  <SelectItem value="tree">{t('mindmap.treeLayout')}</SelectItem>
-                  <SelectItem value="radial">{t('mindmap.radialLayout')}</SelectItem>
-                  <SelectItem value="compact">{t('mindmap.compactLayout')}</SelectItem>
-                  <SelectItem value="spacious">{t('mindmap.spaciousLayout')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <Button variant="outline" size="sm" onClick={toggleLayoutMode}>
+              <Brain className="h-4 w-4 mr-2" />
+              {layoutMode === 'horizontal' ? '水平树形' : '垂直树形'}
+            </Button>
           </div>
 
           <div className="flex items-center space-x-2 text-sm text-gray-600">
+            <span className="flex items-center">
+              <Move3d className="h-4 w-4 mr-1" />
+              思维导图浏览模式 (拖动空白区域移动画布)
+            </span>
             {selectedNode && (
               <span>{t('mindmap.nodeSelected')}: {selectedNode}</span>
             )}
           </div>
         </div>
 
-        {/* 思维导图画布 */}
-        <div
-          className={`flex-1 overflow-hidden relative canvas-container ${
-            isDraggingCanvas ? 'cursor-grabbing' : 'cursor-grab'
-          }`}
-          style={{
-            backgroundImage: `
-              radial-gradient(circle, #e5e7eb 1px, transparent 1px),
-              linear-gradient(135deg, #f8fafc 25%, #f1f5f9 25%, #f1f5f9 50%, #f8fafc 50%, #f8fafc 75%, #f1f5f9 75%, #f1f5f9)
-            `,
-            backgroundSize: '20px 20px, 40px 40px',
-            backgroundColor: '#ffffff'
-          }}
-          onMouseDown={handleCanvasMouseDown}
-          onMouseMove={handleCanvasMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        >
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mindmap.loadingMindmap')}</h3>
-              <p className="text-gray-500">{t('mindmap.analyzingConversation')}</p>
-            </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <Brain className="h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mindmap.generationFailed')}</h3>
-              <p className="text-gray-500 mb-4">{error}</p>
-              <div className="space-x-2">
-                <Button onClick={generateMindmap} disabled={isLoading}>
-                  <Brain className="h-4 w-4 mr-2" />
-                  {t('mindmap.regenerate')}
-                </Button>
-                <Button variant="outline" onClick={goToChat}>
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  {t('mindmap.returnToChatBtn')}
+        {/* 主内容区域 */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* 思维导图画布 */}
+          <div
+            className={`flex-1 overflow-hidden relative canvas-container ${
+              isDraggingCanvas ? 'cursor-grabbing' : 'cursor-grab'
+            }`}
+            style={{
+              backgroundImage: `
+                radial-gradient(circle, #e5e7eb 1px, transparent 1px),
+                linear-gradient(135deg, #f8fafc 25%, #f1f5f9 25%, #f1f5f9 50%, #f8fafc 50%, #f8fafc 75%, #f1f5f9 75%, #f1f5f9)
+              `,
+              backgroundSize: '20px 20px, 40px 40px',
+              backgroundColor: '#ffffff',
+              userSelect: isDraggingCanvas ? 'none' : 'auto'
+            }}
+            onMouseDown={handleCanvasMouseDown}
+            onMouseMove={handleCanvasMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mindmap.loadingMindmap')}</h3>
+                <p className="text-gray-500">{t('mindmap.analyzingConversation')}</p>
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <Brain className="h-12 w-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mindmap.generationFailed')}</h3>
+                <p className="text-gray-500 mb-4">{error}</p>
+                <div className="space-x-2">
+                  <Button onClick={generateMindmap} disabled={isLoading}>
+                    <Brain className="h-4 w-4 mr-2" />
+                    {t('mindmap.regenerate')}
+                  </Button>
+                  <Button variant="outline" onClick={goToChat}>
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    {t('mindmap.returnToChatBtn')}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div
+                className="relative w-full h-full"
+                style={{
+                  transform: `scale(${zoom}) translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
+                  transformOrigin: '0 0',
+                  transition: isDraggingCanvas ? 'none' : 'transform 0.2s ease-in-out',
+                  cursor: isDraggingCanvas ? 'grabbing' : 'default'
+                }}
+              >
+                {/* SVG层用于绘制连接线 */}
+                <svg
+                  className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                  style={{ zIndex: 1 }}
+                >
+                  {mindmapData && renderConnectionLines(mindmapData)}
+                </svg>
+
+                {/* 节点层 */}
+                <div id="mindmap-canvas" className="min-w-[1200px] min-h-[800px]" style={{ position: 'relative', zIndex: 2 }}>
+                  {mindmapData && renderNode(mindmapData)}
+                </div>
+              </div>
+            )}
+
+            {/* 空状态 */}
+            {!isLoading && !error && mindmapData && (!mindmapData.children || mindmapData.children.length === 0) && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center h-full text-center bg-white">
+                <Brain className="h-12 w-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mindmap.noMindmapContent')}</h3>
+                <p className="text-gray-500 mb-4">{t('mindmap.insufficientContent')}</p>
+                <div className="space-x-2">
+                  <Button onClick={generateMindmap} disabled={isLoading}>
+                    <Brain className="h-4 w-4 mr-2" />
+                    {t('mindmap.regenerate')}
+                  </Button>
+                  <Button variant="outline" onClick={goToChat}>
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    {t('mindmap.returnToChatBtn')}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 右侧对话详情面板 */}
+          {selectedAnswer && (
+            <div className="w-[450px] border-l bg-white flex flex-col">
+              {/* 头部 */}
+              <div className="flex items-center justify-between p-6 pb-4 border-b flex-shrink-0">
+                <div className="flex items-center space-x-2">
+                  <Bot className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">对话详情</h3>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedAnswer(null)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </Button>
               </div>
-            </div>
-          ) : (
-            <div
-              className="relative w-full h-full"
-              style={{
-                transform: `scale(${zoom}) translate(${canvasOffset.x}px, ${canvasOffset.y}px)`,
-                transformOrigin: '0 0',
-                transition: isDraggingCanvas ? 'none' : 'transform 0.2s ease-in-out',
-                cursor: isDraggingCanvas ? 'grabbing' : 'default'
-              }}
-            >
-              <div id="mindmap-canvas" className="min-w-[1200px] min-h-[800px]">
-              {mindmapData && renderNode(mindmapData)}
-            </div>
-            </div>
-          )}
 
-          {/* 空状态 */}
-          {!isLoading && !error && mindmapData && (!mindmapData.children || mindmapData.children.length === 0) && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center h-full text-center bg-white">
-              <Brain className="h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mindmap.noMindmapContent')}</h3>
-              <p className="text-gray-500 mb-4">{t('mindmap.insufficientContent')}</p>
-              <div className="space-x-2">
-                <Button onClick={generateMindmap} disabled={isLoading}>
-                  <Brain className="h-4 w-4 mr-2" />
-                  {t('mindmap.regenerate')}
-                </Button>
-                <Button variant="outline" onClick={goToChat}>
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  {t('mindmap.returnToChatBtn')}
-                </Button>
+              {/* 对话内容区域 - 可滚动 */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {(() => {
+                  const questionNode = findQuestionNodeByAnswerId(selectedAnswer.id)
+                  if (!questionNode) {
+                    return (
+                      <div className="text-center py-12">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <MessageSquare className="h-8 w-8 text-gray-400" />
+                        </div>
+                        <p className="text-gray-500">未找到对应的问题内容</p>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="space-y-6">
+                      {/* 用户问题 */}
+                      <div className="flex items-start space-x-4 justify-end">
+                        <div className="max-w-sm lg:max-w-md">
+                          <div
+                            className="rounded-2xl bg-blue-500 text-white px-5 py-3 shadow-sm"
+                          >
+                            <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                              {questionNode.text.replace(/^问题\d+: /, '')}
+                            </p>
+                            <p className="text-xs mt-2 text-blue-100 opacity-80">
+                              用户提问
+                            </p>
+                          </div>
+                        </div>
+                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 shadow-sm">
+                          <User className="h-5 w-5 text-gray-600" />
+                        </div>
+                      </div>
+
+                      {/* AI回答 */}
+                      <div className="flex items-start space-x-4">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 shadow-sm">
+                          <Bot className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="rounded-2xl bg-gray-50 dark:bg-gray-800 px-5 py-4 shadow-sm">
+                            <div className="ai-answer-content prose prose-sm max-w-none">
+                              <MarkdownRenderer
+                                content={selectedAnswer.content}
+                                className="text-gray-900 dark:text-gray-100"
+                              />
+                            </div>
+                            <p className="text-xs mt-3 text-gray-500">
+                              AI 回答
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* 操作区域 */}
+                <div className="space-y-4 mt-8">
+                  <Separator />
+
+                  {/* 快捷操作 */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-3">快捷操作</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="justify-start h-10"
+                        onClick={() => {
+                          if (selectedAnswer?.id) {
+                            locateToMessage(selectedAnswer.id, true)
+                          }
+                        }}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        定位到聊天位置
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="justify-start h-10"
+                        onClick={() => {
+                          const questionNode = findQuestionNodeByAnswerId(selectedAnswer.id)
+                          if (questionNode) {
+                            const questionText = questionNode.text.replace(/^问题\d+: /, '')
+                            const fullConversation = `问题：${questionText}\n\n回答：${selectedAnswer.content}`
+                            navigator.clipboard.writeText(fullConversation).then(() => {
+                              toast.success('对话内容已复制到剪贴板')
+                            }).catch(() => {
+                              toast.error('复制失败')
+                            })
+                          }
+                        }}
+                      >
+                        <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2m-6-6v.01V4m0 14v.01M0 4h.01" />
+                        </svg>
+                        复制对话内容
+                      </Button>
+                    </div>
+
+                    {/* 重新生成回复按钮 */}
+                    <div className="mt-3">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="justify-start h-10 w-full"
+                        onClick={() => setRegenerateDialogOpen(true)}
+                        disabled={isRegenerating}
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
+                        {isRegenerating ? '正在重新生成...' : '重新生成回复'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 统计信息 */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-3">对话统计</label>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {(() => {
+                            const questionNode = findQuestionNodeByAnswerId(selectedAnswer.id)
+                            return questionNode ? questionNode.text.replace(/^问题\d+: /, '').length : 0
+                          })()}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">问题字符</div>
+                      </div>
+                      <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                        <div className="text-2xl font-bold text-green-600">
+                          {selectedAnswer.content.length}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">回答字符</div>
+                      </div>
+                      <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                        <div className="text-2xl font-bold text-purple-600">
+                          {(() => {
+                            const questionNode = findQuestionNodeByAnswerId(selectedAnswer.id)
+                            const questionLength = questionNode ? questionNode.text.replace(/^问题\d+: /, '').length : 0
+                            return questionLength + selectedAnswer.content.length
+                          })()}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">总字符</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
         </div>
+      </div>
 
-        {/* 侧边信息面板 */}
-        {selectedNode && mindmapData && (
-          <div className="w-80 border-l bg-white p-4 overflow-y-auto">
-            <h3 className="font-semibold mb-4">节点信息</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700">节点ID</label>
-                <p className="text-sm text-gray-600 font-mono">{selectedNode}</p>
-              </div>
+      {/* 重新生成回复对话框 */}
+      <Dialog open={regenerateDialogOpen} onOpenChange={setRegenerateDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>选择模型重新生成回复</DialogTitle>
+          </DialogHeader>
 
-              {/* 节点内容 */}
-              {(() => {
-                const findNode = (node: MindmapNode): MindmapNode | null => {
-                  if (node.id === selectedNode) return node
-                  if (node.children) {
-                    for (const child of node.children) {
-                      const found = findNode(child)
-                      if (found) return found
-                    }
-                  }
-                  return null
-                }
-
-                const node = findNode(mindmapData)
-                return node
-              })() && (() => {
-                const node = (() => {
-                  const findNode = (node: MindmapNode): MindmapNode | null => {
-                    if (node.id === selectedNode) return node
-                    if (node.children) {
-                      for (const child of node.children) {
-                        const found = findNode(child)
-                        if (found) return found
-                      }
-                    }
-                    return null
-                  }
-                  return findNode(mindmapData)
-                })()
-
-                return (
-                  <>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">节点内容</label>
-                      <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">{node?.text}</p>
-                    </div>
-
-                    {/* 关联消息 */}
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">关联对话</label>
-                      <p className="text-sm text-gray-600 mb-2">
-                        {node?.associatedMessageId
-                          ? '此节点关联到具体的对话消息'
-                          : '此节点未关联具体消息'}
-                      </p>
-                      <Button variant="outline" size="sm" className="w-full" onClick={handleNodeToConversation}>
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        查看对话
-                      </Button>
-                    </div>
-
-                    <Separator />
-
-                    {/* 节点操作 */}
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">节点操作</label>
-                      <div className="space-y-2 mt-2">
-                        <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleNodeExtendConversation}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          基于此节点延伸对话
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start"
-                          onClick={() => {
-                            if (node?.associatedMessageId) {
-                              goToChat(node.associatedMessageId)
-                            } else {
-                              toast.info('该节点未关联具体消息，无法回溯')
-                            }
-                          }}
-                        >
-                          <ArrowLeft className="h-4 w-4 mr-2" />
-                          回溯到此节点
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* 节点统计 */}
-                    <Separator />
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">节点统计</label>
-                      <div className="mt-2 space-y-1 text-sm text-gray-600">
-                        <div>子节点数量: {(node?.children || []).length}</div>
-                        <div>节点颜色: {node?.color || '默认'}</div>
-                        <div>节点类型: {node?.associatedMessageId ? '消息节点' : '手动创建'}</div>
-                      </div>
-                    </div>
-                  </>
-                )
-              })()}
-
-              {/* 快捷操作 */}
-              <Separator />
-              <div>
-                <label className="text-sm font-medium text-gray-700">快捷操作</label>
-                <div className="space-y-2 mt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      const node = (() => {
-                        const findNode = (n: MindmapNode): MindmapNode | null => {
-                          if (n.id === selectedNode) return n
-                          if (n.children) {
-                            for (const child of n.children) {
-                              const found = findNode(child)
-                              if (found) return found
-                            }
-                          }
-                          return null
-                        }
-                        return findNode(mindmapData)
-                      })()
-
-                      if (node) {
-                        handleNodeDoubleClick(node)
-                      }
-                    }}
-                  >
-                    <Edit3 className="h-4 w-4 mr-2" />
-                    编辑节点内容
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={handleAddNode}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    添加子节点
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={handleDeleteNode}
-                    disabled={selectedNode === 'root'}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    删除此节点
-                  </Button>
-                </div>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2">问题内容</label>
+              <div className="p-3 bg-gray-50 rounded-md text-sm">
+                {(() => {
+                  const questionNode = findQuestionNodeByAnswerId(selectedAnswer?.id || '')
+                  return questionNode ? questionNode.text.replace(/^问题\d+: /, '') : '未找到问题'
+                })()}
               </div>
             </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2">选择AI模型</label>
+              <Select value={selectedRegenerateModel} onValueChange={setSelectedRegenerateModel}>
+                <SelectTrigger>
+                  <SelectValue placeholder="请选择AI模型" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {regenerationError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+                {regenerationError}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRegenerateDialogOpen(false)
+                setRegenerationError(null)
+              }}
+              disabled={isRegenerating}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleRegenerateResponse}
+              disabled={!selectedRegenerateModel || isRegenerating}
+            >
+              {isRegenerating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              确认重新生成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
+  )
+}
+
+export default function MindmapPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+      <MindmapPageContent />
+    </Suspense>
   )
 }

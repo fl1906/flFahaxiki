@@ -196,28 +196,30 @@ export default function Home() {
               ) : recentActivities.length > 0 ? (
                 <div className="divide-y">
                   {recentActivities.map((activity) => (
-                    <div key={activity.id} className="flex items-center justify-between p-4 hover:bg-gray-50">
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          activity.type === '对话' ? 'bg-blue-100' : 'bg-green-100'
-                        }`}>
-                          {activity.type === '对话' ?
-                            <MessageSquare className="h-4 w-4 text-blue-600" /> :
-                            <Brain className="h-4 w-4 text-green-600" />
-                          }
+                    <Link key={activity.id} href={`/chat?conversation=${activity.id}`}>
+                      <div className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            activity.type === '对话' ? 'bg-blue-100' : 'bg-green-100'
+                          }`}>
+                            {activity.type === '对话' ?
+                              <MessageSquare className="h-4 w-4 text-blue-600" /> :
+                              <Brain className="h-4 w-4 text-green-600" />
+                            }
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{activity.name}</p>
+                            <p className="text-sm text-gray-500">
+                              {activity.type} • {activity.model || '未知模型'} • {activity.messageCount || 0} 条消息
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{activity.name}</p>
-                          <p className="text-sm text-gray-500">
-                            {activity.type} • {activity.model || '未知模型'} • {activity.messageCount || 0} 条消息
-                          </p>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm text-gray-500">{activity.time}</span>
+                          <Badge variant="secondary">{activity.type}</Badge>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-500">{activity.time}</span>
-                        <Badge variant="secondary">{activity.type}</Badge>
-                      </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               ) : (

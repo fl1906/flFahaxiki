@@ -6,6 +6,11 @@ export interface MindmapNode {
   children: MindmapNode[]
   color?: string
   associatedMessageId?: string
+  hiddenAnswer?: {
+    id: string
+    content: string
+    truncatedContent: string
+  }
 }
 
 export class MindmapLayout {
@@ -23,7 +28,7 @@ export class MindmapLayout {
   }
 
   /**
-   * 计算线性贪吃蛇布局的位置信息（根节点→问题1→回答1→问题2→回答2）
+   * 计算线性链式思维导图布局的位置信息（根节点→问题1→问题2...）
    */
   private static calculateLinearTreeLayout(node: MindmapNode, depth: number = 0, nodeIndex: number = 0): any {
     const children = node.children || []
@@ -31,28 +36,26 @@ export class MindmapLayout {
     // 计算当前节点的宽度
     const totalWidth = this.getTotalNodeWidth(node)
 
-    // 计算位置 - 贪吃蛇式线性排列
+    // 计算位置 - 直线链式布局
     let x: number
     let y: number
 
-    // 根据节点深度和索引计算位置 - 优化线性贪吃蛇布局
+    // 根据节点深度和索引计算位置 - 直线链式布局
     if (node.id === 'root') {
       // 根节点 - 在起点位置
       x = 100
       y = 400 // 垂直居中
     } else {
-      // 线性贪吃蛇：水平向右展开，S型垂直偏移让路径更清晰
-      const spacing = 220 // 更大的节点间距
-      const amplitude = 60 // S型摆动幅度
+      // 直线链式结构：所有节点在一条水平直线上
+      const spacing = 250 // 节点间距
 
       x = 100 + nodeIndex * spacing
-      // 创建S型路径：奇数节点向上，偶数节点向下
-      y = 400 + (nodeIndex % 2 === 0 ? amplitude : -amplitude)
+      y = 400 // 保持同一水平线
     }
 
-    // 递归处理子节点（只有一个子节点，因为贪吃蛇结构）
+    // 递归处理子节点 - 直线链式结构，每个节点只有一个子节点
     const childLayouts = children.map((child, i) => {
-      // 子节点的索引是基于当前节点索引计算的
+      // 对于直线链式结构，子节点索引递增
       const childIndex = nodeIndex + 1
       return this.calculateLinearTreeLayout(child, depth + 1, childIndex)
     })

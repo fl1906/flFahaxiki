@@ -57,7 +57,7 @@ export async function GET(
         conversationId: conversationId
       },
       orderBy: {
-        createdAt: 'asc'
+        timestamp: 'asc'
       }
     })
 

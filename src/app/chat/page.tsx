@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
+import ChatSearchParamsProvider from '@/components/chat-search-params-provider'
 import DashboardLayout from '@/components/layout/dashboard-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +15,7 @@ import MarkdownRenderer from '@/components/ui/markdown-renderer'
 import MarkdownThemeSelector from '@/components/ui/markdown-theme-selector'
 import CollapsibleSidebar from '@/components/mindmap/collapsible-sidebar'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { toast } from 'sonner'
 import {
   Send,
   Brain,
@@ -23,7 +25,8 @@ import {
   User,
   Bot,
   Trash2,
-  Save
+  Save,
+  RefreshCw
 } from 'lucide-react'
 
 interface Message {
@@ -41,10 +44,11 @@ interface AIModel {
   description?: string
 }
 
-export default function ChatPage() {
+function ChatPageContent() {
   const { t } = useLanguage()
   const searchParams = useSearchParams()
   const conversationParamId = searchParams.get('conversation')
+  const refreshParam = searchParams.get('refresh')
 
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -60,8 +64,22 @@ export default function ChatPage() {
   const [mindmapVisible, setMindmapVisible] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [isLoadingConversation, setIsLoadingConversation] = useState(false)
+  const [forceRefresh, setForceRefresh] = useState(false)
+  const [isRegenerating, setIsRegenerating] = useState(false)
+  const [regeneratingMessageId, setRegeneratingMessageId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Helper function to get token from cookies
+  const getAuthToken = (): string | null => {
+    const cookies = document.cookie.split(';')
+    const tokenCookie = cookies.find(cookie => cookie.trim().startsWith('token='))
+    if (tokenCookie) {
+      const tokenValue = tokenCookie.split('=')[1]
+      return tokenValue ? decodeURIComponent(tokenValue) : null
+    }
+    return null
+  }
 
   // Fetch user AI model list
   useEffect(() => {
@@ -71,7 +89,7 @@ export default function ChatPage() {
         if (response.ok) {
           const data = await response.json()
           setAvailableModels(data.models || [])
-          
+
           // 如果有模型且未选择模型，自动选择第一个
           if (data.models && data.models.length > 0 && !selectedModel) {
             setSelectedModel(data.models[0].id)
@@ -92,7 +110,7 @@ export default function ChatPage() {
     if (conversationParamId) {
       loadConversation(conversationParamId)
     }
-  }, [conversationParamId])
+  }, [conversationParamId, refreshParam])
 
   const loadConversation = async (id: string) => {
     try {
@@ -279,11 +297,18 @@ ${t('chat.genericErrorSolution')}`
 
     // 调用后端API来处理AI请求
     try {
+      const token = getAuthToken()
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           message: userInput,
           modelId: selectedModel,
@@ -375,9 +400,94 @@ ${t('chat.genericErrorSolution')}`
     }
   }
 
+  // 重新生成回复处理函数
+  const handleRegenerateResponse = async (messageId: string) => {
+    if (!selectedModel || !conversationId) {
+      toast.error(t('chat.missingInfoRegenerate'))
+      return
+    }
+
+    // 找到当前AI回复和对应的用户消息
+    const currentMessageIndex = messages.findIndex(msg => msg.id === messageId)
+    if (currentMessageIndex === -1 || messages[currentMessageIndex].type !== 'ai') {
+      toast.error(t('chat.regenerateError'))
+      return
+    }
+
+    // 找到对应用户消息
+    const userMessage = messages[currentMessageIndex - 1]
+    if (!userMessage || userMessage.type !== 'user') {
+      toast.error(t('chat.regenerateError'))
+      return
+    }
+
+    setIsRegenerating(true)
+    setRegeneratingMessageId(messageId)
+
+    try {
+      // 获取选中的模型信息
+      const selectedModelData = availableModels.find(model => model.id === selectedModel)
+      if (!selectedModelData) {
+        throw new Error('所选模型不存在')
+      }
+
+      // 调用AI API重新生成回复
+      const token = getAuthToken()
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          message: userMessage.content,
+          modelId: selectedModel,
+          modelEndpoint: selectedModelData.endpoint,
+          modelName: selectedModelData.model,
+          conversationId,
+          isRegeneration: true,
+          messageIdToUpdate: messageId
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('errorData is',errorData)
+        throw new Error(errorData.error || t('chat.regenerateError'))
+      }
+
+      const data = await response.json()
+
+      // 更新消息列表中的AI回复
+      setMessages(prev => prev.map(msg =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              content: data.response,
+              timestamp: new Date()
+            }
+          : msg
+      ))
+
+      toast.success(t('chat.regenerateSuccess'))
+    } catch (error) {
+      console.error('重新生成失败:', error)
+      const errorMessage = error instanceof Error ? error.message : t('chat.regenerateError')
+      toast.error(errorMessage)
+    } finally {
+      setIsRegenerating(false)
+      setRegeneratingMessageId(null)
+    }
+  }
+
   return (
-    <DashboardLayout>
-      <div className="flex h-full">
+      <DashboardLayout>
+        <div className="flex h-full">
         {/* 主对话区域 */}
         <div className={`flex-1 flex flex-col transition-all duration-300 ${
           messages.length > 0 ? 'mr-0' : 'mr-0'
@@ -512,18 +622,35 @@ ${t('chat.genericErrorSolution')}`
                         }`}
                       >
                         {message.type === 'ai' ? (
-                          <MarkdownRenderer
-                            content={message.content}
-                            className="ai-message-content"
-                          />
+                          <>
+                            <MarkdownRenderer
+                              content={message.content}
+                              className="ai-message-content"
+                            />
+                            <div className="mt-2 flex items-center justify-between">
+                              <p className="text-xs text-gray-500">
+                                {message.timestamp.toLocaleTimeString()}
+                              </p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRegenerateResponse(message.id)}
+                                disabled={isRegenerating && regeneratingMessageId === message.id}
+                                className="h-6 px-2 text-xs text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                              >
+                                <RefreshCw className={`h-3 w-3 mr-1 ${isRegenerating && regeneratingMessageId === message.id ? 'animate-spin' : ''}`} />
+                                {isRegenerating && regeneratingMessageId === message.id ? t('chat.regenerating') : t('chat.regenerateResponse')}
+                              </Button>
+                            </div>
+                          </>
                         ) : (
                           <p className="whitespace-pre-wrap">{message.content}</p>
                         )}
-                        <p className={`text-xs mt-2 ${
-                          message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
-                        }`}>
-                          {message.timestamp.toLocaleTimeString()}
-                        </p>
+                        {message.type === 'user' && (
+                          <p className="text-xs mt-2 text-blue-100">
+                            {message.timestamp.toLocaleTimeString()}
+                          </p>
+                        )}
                       </div>
 
                       {message.type === 'user' && (
@@ -586,5 +713,13 @@ ${t('chat.genericErrorSolution')}`
         )}
       </div>
     </DashboardLayout>
+  )
+}
+
+export default function ChatPage() {
+  return (
+    <ChatSearchParamsProvider>
+      <ChatPageContent />
+    </ChatSearchParamsProvider>
   )
 }

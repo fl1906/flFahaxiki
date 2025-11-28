@@ -10,6 +10,11 @@ interface MindmapNode {
   children: MindmapNode[]
   color?: string
   associatedMessageId?: string
+  hiddenAnswer?: {
+    id: string
+    content: string
+    truncatedContent: string
+  }
 }
 
 interface GenerateMindmapRequest {
@@ -17,7 +22,7 @@ interface GenerateMindmapRequest {
   title?: string
 }
 
-// 基于对话消息生成线性贪吃蛇思维导图（根节点→问题1→回答1→问题2→回答2）
+// 基于对话消息生成简化思维导图（根节点→问题1→问题2，点击问题显示回答）
 function generateMindmapFromMessages(conversationId: string, conversationTitle: string): Promise<MindmapNode> {
   return new Promise(async (resolve, reject) => {
     try {
@@ -48,44 +53,48 @@ function generateMindmapFromMessages(conversationId: string, conversationTitle: 
         color: '#3b82f6'
       }
 
-      // 创建线性贪吃蛇结构
+      // 创建线性链式结构：根节点→问题1→问题2→问题3...
       let lastNode: MindmapNode = rootNode
-      let messageIndex = 0
+      let questionIndex = 1
+      let usedAiAnswers = new Set() // 跟踪已使用的AI回答
 
       for (const message of messages) {
-        const nodeText = truncateText(message.content, 30)
-
         if (message.senderType === 'user') {
-          // 用户提问节点
+          const nodeText = truncateText(message.content, 50)
+
+          // 查找对应的AI回答 - 查找当前用户消息之后的第一个未使用的AI回答
+          const aiAnswer = messages.find(m =>
+            m.senderType === 'ai' &&
+            m.timestamp > message.timestamp &&
+            !usedAiAnswers.has(m.id)
+          )
+
+          // 如果找到AI回答，标记为已使用
+          if (aiAnswer) {
+            usedAiAnswers.add(aiAnswer.id)
+          }
+
+          // 用户提问节点 - 包含隐藏的回答数据
           const userNode: MindmapNode = {
-            id: `user_${message.id}`,
-            text: `Q: ${nodeText}`,
+            id: `question_${message.id}`,
+            text: `问题${questionIndex}: ${nodeText}`,
             x: 0, // 位置由布局算法决定
             y: 0, // 位置由布局算法决定
             children: [],
             color: '#10b981',
-            associatedMessageId: message.id
+            associatedMessageId: message.id,
+            // 存储隐藏的回答数据
+            hiddenAnswer: aiAnswer ? {
+              id: aiAnswer.id,
+              content: aiAnswer.content,
+              truncatedContent: truncateText(aiAnswer.content, 200)
+            } : null
           }
 
-          // 将用户问题添加到前一个节点的子节点中
+          // 将用户问题添加到前一个节点的子节点中，形成线性链
           lastNode.children.push(userNode)
           lastNode = userNode
-          messageIndex++
-        } else {
-          // AI回复节点
-          const aiNode: MindmapNode = {
-            id: `ai_${message.id}`,
-            text: `A: ${nodeText}`,
-            x: 0, // 位置由布局算法决定
-            y: 0, // 位置由布局算法决定
-            children: [],
-            color: '#f59e0b',
-            associatedMessageId: message.id
-          }
-
-          // 将AI回复添加到前一个节点（用户问题）的子节点中
-          lastNode.children.push(aiNode)
-          lastNode = aiNode
+          questionIndex++
         }
       }
 
@@ -155,7 +164,7 @@ export async function POST(request: NextRequest) {
 
     // 保存或更新思维导图
     const structureData = JSON.stringify(mindmapRoot)
-    
+
     const mindmap = await db.mindmap.upsert({
       where: { conversationId },
       update: {
