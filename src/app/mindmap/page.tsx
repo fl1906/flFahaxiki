@@ -349,6 +349,56 @@ function MindmapPageContent() {
     }
   }
 
+  const handleRollbackToConversation = async (messageId: string) => {
+    if (!conversationId || !messageId) {
+      toast.error('缺少对话ID或消息ID')
+      return
+    }
+
+    // 确认操作
+    const confirmed = window.confirm('确定要回滚到此处吗？此操作将删除该消息之后的所有对话内容，且不可恢复。')
+    if (!confirmed) return
+
+    try {
+      setIsLoading(true)
+
+      const response = await fetch('/api/conversations/rollback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cookie': `token=${(window as any).localStorage.getItem('token') || ''}`
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          conversationId,
+          messageId
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || '回滚失败')
+      }
+
+      const data = await response.json()
+
+      // 关闭对话详情面板
+      setSelectedAnswer(null)
+
+      // 显示成功消息
+      toast.success(data.message || `成功回滚到指定消息，删除了 ${data.deletedCount} 条后续消息`)
+
+      // 重新加载思维导图数据
+      await loadMindmapData()
+
+    } catch (error) {
+      console.error('回滚对话失败:', error)
+      toast.error(error instanceof Error ? error.message : '回滚失败，请稍后重试')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const generateMindmap = async () => {
     if (!conversationId) return
 
@@ -1140,6 +1190,23 @@ function MindmapPageContent() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2m-6-6v.01V4m0 14v.01M0 4h.01" />
                         </svg>
                         复制对话内容
+                      </Button>
+
+                      {/* 回滚到此处按钮 */}
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="justify-start h-10 col-span-2"
+                        onClick={() => {
+                          handleRollbackToConversation(selectedAnswer.id)
+                        }}
+                        disabled={!selectedAnswer?.id}
+                      >
+                        <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6-6m-6 6h8" />
+                        </svg>
+                        回滚到此处
+                        <span className="text-xs text-gray-400 ml-2">将删除此节点后的所有对话</span>
                       </Button>
                     </div>
 
