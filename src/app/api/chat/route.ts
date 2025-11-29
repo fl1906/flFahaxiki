@@ -265,9 +265,10 @@ export async function POST(request: NextRequest) {
         { status: 502 }
       )
     }
-
+      let newAiMessage: any = null
     // 保存对话记录到数据库
     if (conversationId) {
+
       try {
         // 验证对话是否属于当前用户
         const conversation = await db.conversation.findFirst({
@@ -289,7 +290,7 @@ export async function POST(request: NextRequest) {
             })
 
             // 插入新的AI回复消息
-            const newAiMessage = await db.chatMessage.create({
+            newAiMessage = await db.chatMessage.create({
               data: {
                 conversationId,
                 senderType: 'ai',

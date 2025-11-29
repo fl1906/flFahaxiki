@@ -578,65 +578,6 @@ function MindmapPageContent() {
     }
   }
 
-  const handleCreateBranch = async () => {
-    if (!selectedNode || !mindmapData || !conversationId) {
-      toast.error('请选择一个节点来创建分支')
-      return
-    }
-
-    if (selectedNode === 'root') {
-      toast.error('不能从根节点创建分支')
-      return
-    }
-
-    // 找到选中的节点
-    const findSelectedNode = (node: MindmapNode): MindmapNode | null => {
-      if (node.id === selectedNode) return node
-      if (node.children) {
-        for (const child of node.children) {
-          const found = findSelectedNode(child)
-          if (found) return found
-        }
-      }
-      return null
-    }
-
-    const selectedNodeData = findSelectedNode(mindmapData)
-    if (!selectedNodeData) {
-      toast.error('找不到选中的节点')
-      return
-    }
-
-    try {
-      const response = await fetch('/api/conversations/branch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          conversationId,
-          parentMessageId: selectedNode,
-          branchTitle: `分支: ${selectedNodeData.text.substring(0, 20)}...`
-        })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || '创建分支失败')
-      }
-
-      const data = await response.json()
-      toast.success('分支创建成功')
-
-      // 跳转到新分支的对话页面
-      window.location.href = `/chat?conversation=${data.branchConversation.id}`
-
-    } catch (error) {
-      console.error('创建分支失败:', error)
-      toast.error(error instanceof Error ? error.message : '创建分支失败')
-    }
-  }
-
   // 背景拖拽处理函数
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     // 只有当点击在空白区域时才触发背景拖拽
