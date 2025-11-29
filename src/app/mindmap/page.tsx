@@ -45,7 +45,8 @@ import {
   Trash2,
   Edit3,
   Move3d,
-  RefreshCw
+  RefreshCw,
+  GitBranch
 } from 'lucide-react'
 
 interface MindmapNode {
@@ -79,6 +80,8 @@ function MindmapPageContent() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [layoutMode, setLayoutMode] = useState<'horizontal' | 'vertical'>('horizontal')
+  const [branches, setBranches] = useState<any[]>([])
+  const [branchesLoading, setBranchesLoading] = useState(false)
 
   // 重新生成回复相关状态
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false)
@@ -516,6 +519,124 @@ function MindmapPageContent() {
     document.body.style.cursor = 'default'
   }
 
+  const handleCreateBranch = async () => {
+    if (!selectedNode || !mindmapData || !conversationId) {
+      toast.error('请选择一个节点来创建分支')
+      return
+    }
+
+    if (selectedNode === 'root') {
+      toast.error('不能从根节点创建分支')
+      return
+    }
+
+    // 找到选中的节点
+    const findSelectedNode = (node: MindmapNode): MindmapNode | null => {
+      if (node.id === selectedNode) return node
+      if (node.children) {
+        for (const child of node.children) {
+          const found = findSelectedNode(child)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    const selectedNodeData = findSelectedNode(mindmapData)
+    if (!selectedNodeData) {
+      toast.error('找不到选中的节点')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/conversations/branch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversationId,
+          parentMessageId: selectedNode,
+          branchTitle: `分支: ${selectedNodeData.text.substring(0, 20)}...`
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || '创建分支失败')
+      }
+
+      const data = await response.json()
+      toast.success('分支创建成功')
+
+      // 跳转到新分支的对话页面
+      window.location.href = `/chat?conversation=${data.branchConversation.id}`
+
+    } catch (error) {
+      console.error('创建分支失败:', error)
+      toast.error(error instanceof Error ? error.message : '创建分支失败')
+    }
+  }
+
+  const handleCreateBranch = async () => {
+    if (!selectedNode || !mindmapData || !conversationId) {
+      toast.error('请选择一个节点来创建分支')
+      return
+    }
+
+    if (selectedNode === 'root') {
+      toast.error('不能从根节点创建分支')
+      return
+    }
+
+    // 找到选中的节点
+    const findSelectedNode = (node: MindmapNode): MindmapNode | null => {
+      if (node.id === selectedNode) return node
+      if (node.children) {
+        for (const child of node.children) {
+          const found = findSelectedNode(child)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    const selectedNodeData = findSelectedNode(mindmapData)
+    if (!selectedNodeData) {
+      toast.error('找不到选中的节点')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/conversations/branch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversationId,
+          parentMessageId: selectedNode,
+          branchTitle: `分支: ${selectedNodeData.text.substring(0, 20)}...`
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || '创建分支失败')
+      }
+
+      const data = await response.json()
+      toast.success('分支创建成功')
+
+      // 跳转到新分支的对话页面
+      window.location.href = `/chat?conversation=${data.branchConversation.id}`
+
+    } catch (error) {
+      console.error('创建分支失败:', error)
+      toast.error(error instanceof Error ? error.message : '创建分支失败')
+    }
+  }
+
   // 背景拖拽处理函数
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     // 只有当点击在空白区域时才触发背景拖拽
@@ -833,6 +954,20 @@ function MindmapPageContent() {
             <Button variant="outline" size="sm" onClick={handleDeleteNode} disabled={!selectedNode || selectedNode === 'root'}>
               <Trash2 className="h-4 w-4 mr-2" />
               {t('mindmap.deleteNode')}
+            </Button>
+
+            <Separator orientation="vertical" className="h-6" />
+
+            {/* <Button variant="outline" size="sm" onClick={handleCreateBranch} disabled={!selectedNode || selectedNode === 'root' || !selectedNode.startsWith('cm')}>
+              <GitBranch className="h-4 w-4 mr-2" />
+              创建分支
+            </Button> */}
+
+            <Separator orientation="vertical" className="h-6" />
+
+            <Button variant="outline" size="sm" onClick={handleCreateBranch} disabled={!selectedNode || selectedNode === 'root' || !selectedNode.startsWith('cm')}>
+              <GitBranch className="h-4 w-4 mr-2" />
+              创建分支
             </Button>
 
             <Separator orientation="vertical" className="h-6" />
