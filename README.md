@@ -1,293 +1,385 @@
-# 💬 思导聊 - AI对话与思维导图一体化生产力工具 
+# Sidao Chat (思导聊)
 
-一款面向职场办公人士的Web端AI对话与思维导图一体化生产力工具。通过将AI对话与思维导图深度融合，帮助用户结构化记录、梳理和回溯对话内容，提升信息整理与知识管理效率。
+An AI-powered conversation and mind mapping productivity tool that seamlessly integrates intelligent dialogues with visual knowledge organization to help users structure and synthesize information efficiently.
 
-## ✨ 核心功能
+## Theme
 
-### 🤖 AI对话功能
-- **多模型支持**: 支持GPT-4、Claude等多种AI模型
-- **自定义API**: 允许用户配置自定义AI模型和API地址
-- **对话历史**: 自动保存所有对话记录，支持搜索和筛选
-- **实时交互**: 流畅的对话体验，支持快速回复
+Sidao Chat embodies the principle of **conversational knowledge synthesis** - transforming linear AI interactions into structured, visual learning experiences. The application bridges the gap between unstructured conversations and organized knowledge representation through intelligent mind mapping that automatically extracts, organizes, and visualizes key concepts from AI interactions.
 
-### 🧠 思维导图功能
-- **自动生成**: AI对话内容自动转化为思维导图
-- **可视化展示**: 直观的节点式展示，支持缩放和拖拽
-- **手动编辑**: 支持节点的添加、删除、编辑和移动
-- **关联对话**: 点击节点可快速跳转到对应的对话内容
+### Core Philosophy
 
-### 🔗 对话与思维导图关联
-- **节点跳转**: 点击思维导图节点直接定位到相关对话
-- **对话回溯**: 基于节点回溯历史对话状态
-- **分支延伸**: 从任意节点延伸出新的对话分支
-- **双向同步**: 对话内容更新实时反映到思维导图
+- **From Conversation to Cognition**: Transform dialogue into discoverable knowledge structures
+- **Context Preservation**: Maintain conversational context while extracting actionable insights
+- **Visual Learning**: Leverage mind mapping for better comprehension and retention
+- **Intelligent Organization**: AI-powered extraction of hierarchical concepts from conversations
 
-### 👤 用户管理
-- **安全认证**: 用户注册、登录、密码找回
-- **个人资料**: 管理个人信息和偏好设置
-- **数据同步**: 支持本地存储和云端同步
+## Problem Statement
 
-## 🛠️ 技术栈
+### The Challenge
 
-### 🎯 核心框架
-- **⚡ Next.js 15** - React框架，使用App Router
-- **📘 TypeScript 5** - 类型安全的JavaScript
-- **🎨 Tailwind CSS 4** - 实用优先的CSS框架
-- **🧩 shadcn/ui** - 高质量、可访问的UI组件库
+In today's AI-driven workflow, users face several critical challenges:
 
-### 🗄️ 数据库与后端
-- **🗄️ Prisma** - 现代化的Node.js和TypeScript ORM
-- **🔐 bcryptjs** - 密码加密
-- **🔑 JWT** - 用户认证和授权
-- **🤖 z-ai-web-dev-sdk** - AI模型集成
+1. **Information Fragmentation**: AI conversations produce valuable insights that get lost in linear chat histories
+2. **Knowledge Extraction Difficulty**: Manually organizing conversational insights into structured knowledge is time-consuming
+3. **Context Loss**: Important connections between different conversation points are often missed
+4. **Review Inefficiency**: Finding specific insights from long conversation histories is challenging
+5. **Collaboration Barriers**: Sharing organized conversational insights with teams is difficult
 
-### 🎨 UI/UX
-- **🎯 Lucide React** - 美观一致的图标库
-- **🌈 Framer Motion** - React动画库
-- **📊 响应式设计** - 移动端优先的设计理念
+### The Solution
 
-## 🚀 快速开始
+Sidao Chat addresses these challenges by:
 
-### 环境要求
-- Node.js 18+ 
-- npm 或 yarn
-- Docker 和 Docker Compose（可选，用于容器化部署）
+- **Automatic Mind Map Generation**: AI-driven extraction of concepts and relationships from conversations
+- **Real-time Visualization**: Interactive mind maps that update as conversations progress
+- **Bidirectional Navigation**: Seamless transitions between chat messages and mind map nodes
+- **Knowledge Persistence**: Persistent storage of structured conversations and their visual representations
+- **Multi-Model Flexibility**: Support for various AI models through customizable configurations
 
-### 安装和运行
+## Key Features Implemented
 
-#### 本地开发
+### 🧠 Intelligent Mind Mapping
+- **Automatic Generation**: AI-powered extraction of concepts and relationships from conversations
+- **Interactive Visualization**: Drag-and-drop interface with zoom and pan capabilities
+- **Node Management**: Add, edit, delete, and reorganize mind map nodes
+- **Layout Options**: Horizontal and vertical tree layouts with automatic positioning
+- **Answer Integration**: Click nodes to reveal and view corresponding AI responses
 
-```bash
-# 克隆项目
-git clone <repository-url>
-cd sidao-chat
+### 💬 Advanced Conversation System
+- **Multi-Model Support**: Integration with various AI providers through configurable endpoints
+- **Conversation Branching**: Support for branching conversations from specific messages
+- **Message History**: Persistent storage and retrieval of conversation histories
+- **Real-time Updates**: Live conversation updates with synchronized mind map changes
+- **Regeneration Capability**: Regenerate AI responses using different models
 
-# 安装依赖
-npm install
+### 🔧 User Experience & Productivity
+- **Responsive Design**: Mobile-first approach with desktop optimization
+- **Keyboard Shortcuts**: Comprehensive shortcuts for power users (Ctrl+S save, Ctrl+E export, etc.)
+- **Dark/Light Themes**: Theme switching with system preference detection
+- **Export Functionality**: Export mind maps to various formats (PNG, PDF, JSON)
+- **Search & Filter**: Find conversations and messages quickly with advanced search
 
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 文件，配置数据库连接等信息
+### 🔐 Authentication & Security
+- **JWT-based Authentication**: Secure user sessions with 7-day token expiration
+- **Password Security**: bcryptjs hashing for secure password storage
+- **User Management**: Complete registration, login, and profile management
+- **Session Persistence**: Cookie-based token storage with automatic refresh
 
-# 初始化数据库
-npm run db:push
+### 🛠️ Technical Features
+- **Custom AI Model Configuration**: Users can add their own AI endpoints and API keys
+- **Conversation Management**: Create, edit, delete, and organize conversations
+- **Real-time Sync**: Synchronized state between chat and mind map views
+- **Error Handling**: Comprehensive error boundaries and user-friendly error messages
+- **Performance Optimization**: Efficient data loading with lazy loading and caching
 
-# 启动开发服务器
-npm run dev
+### 🌐 Internationalization
+- **Multi-language Support**: Built-in i18n with Chinese and English language support
+- **Localized UI**: All interface elements, messages, and documentation translated
+- **Dynamic Language Switching**: Change languages without page reload
+
+## Technical Design & Architecture
+
+### System Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Frontend Layer                            │
+├─────────────────────────────────────────────────────────────┤
+│  Next.js 15 App Router                                       │
+│  ├── Chat Interface (/chat)                                  │
+│  ├── Mind Mapping (/mindmap)                                │
+│  ├── Settings & Configuration (/settings)                    │
+│  ├── Authentication (/login, /register)                     │
+│  └── History Management (/history)                           │
+├─────────────────────────────────────────────────────────────┤
+│                    API Layer                                │
+├─────────────────────────────────────────────────────────────┤
+│  ├── /api/auth/* - Authentication endpoints                 │
+│  ├── /api/chat - AI conversation handler                    │
+│  ├── /api/models - AI model CRUD operations                 │
+│  ├── /api/mindmap/* - Mind map generation & retrieval       │
+│  ├── /api/conversations - Conversation management           │
+│  └── /api/messages - Message handling                       │
+├─────────────────────────────────────────────────────────────┤
+│                   Business Logic                             │
+├─────────────────────────────────────────────────────────────┤
+│  ├── JWT Authentication & Session Management                │
+│  ├── AI Model Integration (z-ai-web-dev-sdk)               │
+│  ├── Mind Map Layout Algorithms                            │
+│  ├── Conversation Context Management                        │
+│  └── Data Validation & Error Handling                      │
+├─────────────────────────────────────────────────────────────┤
+│                    Data Layer                                │
+├─────────────────────────────────────────────────────────────┤
+│  Prisma ORM + SQLite Database                               │
+│  ├── Users - Authentication & Profile                      │
+│  ├── AIModelConfig - Custom AI configurations               │
+│  ├── Conversation - Chat sessions with branching            │
+│  ├── ChatMessage - Individual conversation messages         │
+│  └── Mindmap - JSON-stored mind map structures              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-#### Docker部署（推荐）
+### Frontend Architecture
+
+**Technology Stack:**
+- **Framework**: Next.js 15 with App Router
+- **Language**: TypeScript 5 (configured for flexibility)
+- **Styling**: Tailwind CSS 4 with shadcn/ui components
+- **State Management**: React hooks with Zustand for complex state
+- **UI Components**: Radix UI primitives with custom styling
+- **Internationalization**: next-intl for dynamic language switching
+
+**Component Architecture:**
+```
+src/
+├── app/                     # Next.js App Router
+│   ├── api/                # API routes
+│   ├── chat/              # Chat interface
+│   ├── mindmap/           # Mind mapping interface
+│   ├── settings/          # Configuration pages
+│   └── layout.tsx         # Root layout
+├── components/             # Reusable React components
+│   ├── layout/           # Layout components
+│   ├── ui/               # shadcn/ui components
+│   └── mindmap/          # Mind map specific components
+├── hooks/                 # Custom React hooks
+├── lib/                   # Utility functions
+├── prisma/               # Database schema
+└── public/               # Static assets
+```
+
+### Database Design
+
+**Core Data Models:**
+
+1. **User**: Authentication and profile management
+   - JWT-based authentication with 7-day expiration
+   - Profile information and preferences
+   - Relationship to AI configurations and conversations
+
+2. **AIModelConfig**: Custom AI model configurations
+   - Support for multiple AI providers and endpoints
+   - User-specific API keys and model settings
+   - Flexible model configuration system
+
+3. **Conversation**: Chat session management
+   - Support for conversation branching
+   - Integration with mind maps through node linking
+   - Parent-child relationships for conversation trees
+
+4. **ChatMessage**: Individual conversation messages
+   - Full conversation history with timestamps
+   - Support for user and AI message types
+   - Linkage to specific mind map nodes
+
+5. **Mindmap**: Visual knowledge representation
+   - JSON-based storage of hierarchical node structures
+   - Direct linkage to conversations for bidirectional navigation
+   - Support for custom layouts and styling
+
+### API Architecture
+
+**RESTful API Design:**
+- **Authentication Flow**: JWT token-based authentication with cookie storage
+- **Error Handling**: Comprehensive error responses with detailed error codes
+- **Request Validation**: Input validation using Zod schemas
+- **Response Format**: Consistent JSON response structure with metadata
+
+**Key API Endpoints:**
+- `/api/auth/*` - Authentication (login, register, logout)
+- `/api/chat` - AI conversation processing with model integration
+- `/api/models` - AI model CRUD operations
+- `/api/mindmap/*` - Mind map generation and retrieval
+- `/api/conversations` - Conversation management with branching support
+
+### Mind Mapping Engine
+
+**Layout Algorithms:**
+- **Horizontal Tree Layout**: Traditional left-to-right hierarchical layout
+- **Vertical Tree Layout**: Top-to-bottom hierarchical organization
+- **Auto-positioning**: Intelligent node spacing and collision avoidance
+- **Interactive Positioning**: Manual node adjustment with automatic child repositioning
+
+**Visualization Features:**
+- **Dynamic Rendering**: SVG-based connection lines with interactive nodes
+- **Zoom & Pan**: Canvas manipulation with mouse and keyboard controls
+- **Node Interaction**: Click-to-expand, drag-to-reposition, inline editing
+- **Visual Feedback**: Hover effects, selection indicators, and loading states
+
+### AI Integration Architecture
+
+**Multi-Model Support:**
+- **Flexible Configuration**: User-defined AI endpoints and models
+- **Standardized Interface**: Common API abstraction for different AI providers
+- **Error Handling**: Graceful degradation when AI services are unavailable
+- **Conversation Context**: Automatic context passing from conversation history
+
+**Response Processing:**
+- **Streaming Support**: Real-time response streaming when available
+- **Error Recovery**: Automatic retry and fallback mechanisms
+- **Response Formatting**: Markdown parsing and syntax highlighting
+- **Knowledge Extraction**: AI-powered concept extraction for mind map generation
+
+### Performance Optimization
+
+**Frontend Optimizations:**
+- **Code Splitting**: Automatic route-based code splitting with Next.js
+- **Lazy Loading**: Dynamic imports for heavy components
+- **Image Optimization**: Next.js Image component with automatic optimization
+- **Caching Strategy**: React Query for server state caching and synchronization
+
+**Backend Optimizations:**
+- **Database Query Optimization**: Prisma query optimization with selective loading
+- **Response Compression**: Gzip compression for API responses
+- **Rate Limiting**: Built-in rate limiting for API endpoints
+- **Connection Pooling**: Efficient database connection management
+
+### Security Architecture
+
+**Authentication & Authorization:**
+- **JWT Security**: Secure token generation and validation
+- **Password Security**: bcryptjs hashing with salt rounds
+- **Session Management**: Secure cookie handling with httpOnly and secure flags
+- **API Security**: Request validation and SQL injection prevention
+
+**Data Protection:**
+- **Input Validation**: Comprehensive input sanitization and validation
+- **XSS Prevention**: Content Security Policy and input escaping
+- **CSRF Protection**: SameSite cookies and CSRF tokens
+- **Environment Security**: Environment variable protection for sensitive data
+
+### Deployment Architecture
+
+**Production Deployment:**
+- **Docker Support**: Multi-stage Docker builds for production
+- **Environment Configuration**: Environment-specific configuration management
+- **Database Management**: SQLite with migration and seeding support
+- **Monitoring**: Built-in error tracking and performance monitoring
+
+**Development Workflow:**
+- **Hot Reloading**: Development server with automatic reloading
+- **Database Migrations**: Prisma migration system for schema changes
+- **Code Quality**: ESLint and TypeScript configuration
+- **Testing**: Jest and React Testing Library integration
+
+## Quick Start
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+- Docker and Docker Compose (optional, for containerized deployment)
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd sidao-chat
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Environment setup**
+   ```bash
+   cp .env.example .env
+   # Edit .env file with your configuration
+   ```
+
+4. **Database setup**
+   ```bash
+   npm run db:push
+   npm run db:generate
+   ```
+
+5. **Development server**
+   ```bash
+   npm run dev
+   ```
+
+   Open [http://localhost:3004](http://localhost:3004) to view the application.
+
+### Production Deployment
 
 ```bash
-# 使用Docker Compose一键部署
+# Build for production
+npm run build
+
+# Start production server
+npm run start
+
+# Or build and start in one command
+npm run start:prod
+```
+
+### Docker Deployment
+
+```bash
+# Using Docker Compose (recommended)
 npm run docker:compose
 
-# 或者手动构建和运行
+# Or manual build and run
 npm run docker:build
 npm run docker:run
 ```
 
-#### 生产环境部署
+### User Registration
 
-```bash
-# 构建生产版本
-npm run build
+1. Visit `/login` page
+2. Click "Register new account"
+3. Fill in email and password
+4. Configure AI models in settings after login
 
-# 启动生产服务器
-npm run start
+### AI Model Configuration
 
-# 或者一键构建并启动
-npm run start:prod
-```
+1. Go to "Settings" page after login
+2. Click "Add new model"
+3. Fill in model name, API endpoint, and API key
+4. Supports OpenAI, Claude, and other AI service providers
 
-打开 [http://localhost:3000](http://localhost:3000) 查看应用。
+> ⚠️ **Security Note**: Please set strong JWT secrets before production deployment!
 
-### 账户注册
+## Available Scripts
 
-系统支持用户注册和登录：
+- `npm run dev` - Start development server with hot reload
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run db:push` - Push schema changes to database
+- `npm run db:generate` - Generate Prisma client
+- `npm run db:migrate` - Run database migrations
+- `npm run db:reset` - Reset database
+- `npm run db:seed` - Seed database with initial data
 
-1. 访问 `/login` 页面
-2. 点击"注册新账户"
-3. 填写邮箱和密码完成注册
-4. 登录后在设置页面配置AI模型和API密钥
+## Contributing
 
-### AI模型配置
+This is an open-source project focused on advancing AI-powered knowledge management. We welcome contributions that enhance user experience and expand the platform's capabilities.
 
-要使用AI对话功能，需要配置AI模型：
+### Development Guidelines
 
-1. 登录后访问"设置"页面
-2. 点击"添加新模型"
-3. 填写模型名称、API地址和API密钥
-4. 支持OpenAI、Claude等多种AI服务提供商
+1. Fork the project
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-> ⚠️ **安全提示**: 生产环境部署前请设置强JWT密钥！
+### Code Quality
 
-### 生产部署
+- Follow TypeScript best practices
+- Use ESLint configuration for code consistency
+- Write meaningful commit messages
+- Include tests for new features when possible
 
-详细的部署指南请参考 [DEPLOYMENT.md](./DEPLOYMENT.md) 文档。
+## License
 
-#### 快速部署
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-```bash
-# 构建生产版本
-npm run build
+## Acknowledgments
 
-# 启动生产服务器
-npm run start
-
-# 或者一键构建并启动
-npm run start:prod
-```
-
-## 📁 项目结构
-
-```
-src/
-├── app/                    # Next.js App Router页面
-│   ├── api/               # API路由
-│   │   └── auth/         # 认证相关API
-│   ├── chat/             # 对话界面
-│   ├── history/          # 历史对话
-│   ├── login/            # 登录注册
-│   ├── mindmap/          # 思维导图
-│   ├── settings/         # 设置页面
-│   └── layout.tsx        # 根布局
-├── components/            # React组件
-│   ├── layout/           # 布局组件
-│   └── ui/               # shadcn/ui组件
-├── hooks/                # 自定义React hooks
-├── lib/                  # 工具函数和配置
-├── prisma/               # 数据库schema
-└── public/               # 静态资源
-```
-
-## 🎯 核心页面
-
-### 🏠 首页/仪表盘 (`/`)
-- 统计数据展示
-- 快捷入口
-- 最近活动概览
-
-### 💬 对话界面 (`/chat`)
-- AI模型选择
-- 实时对话
-- 消息历史
-- 思维导图入口
-
-### 🧠 思维导图 (`/mindmap`)
-- 可视化思维导图
-- 节点编辑
-- 缩放控制
-- 对话关联
-
-### 📚 历史对话 (`/history`)
-- 对话列表
-- 搜索筛选
-- 批量操作
-- 导出功能
-
-### ⚙️ 设置 (`/settings`)
-- AI模型管理
-- 个人信息
-- 外观设置
-- 快捷键配置
-
-### 🔐 登录注册 (`/login`)
-- 用户注册
-- 安全登录
-- 密码找回
-
-## 🎨 设计特色
-
-### 📱 响应式设计
-- 移动端优先的设计理念
-- 支持桌面、平板、手机等多种设备
-- 自适应布局和交互
-
-### 🌙 主题支持
-- 浅色/深色主题切换
-- 系统主题跟随
-- 一致的设计语言
-
-### ⚡ 性能优化
-- 组件懒加载
-- 图片优化
-- 代码分割
-- 缓存策略
-
-## 🔒 安全特性
-
-- **密码加密**: 使用bcryptjs进行密码哈希
-- **JWT认证**: 安全的用户认证机制
-- **HTTPS**: 所有数据传输加密
-- **输入验证**: 前后端双重验证
-
-## 🤖 AI集成
-
-### 支持的AI模型
-- OpenAI GPT系列
-- Anthropic Claude
-- 自定义API端点
-- 本地部署模型
-
-### 核心AI功能
-- 智能对话回复
-- 关键词提取
-- 思维导图生成
-- 内容结构化
-
-## 📊 数据模型
-
-### 核心实体
-- **User**: 用户信息
-- **AIModelConfig**: AI模型配置
-- **Conversation**: 对话记录
-- **ChatMessage**: 对话消息
-- **Mindmap**: 思维导图
-
-### 关系设计
-- 用户-对话：一对多
-- 对话-消息：一对多
-- 对话-思维导图：一对一
-- 支持对话分支和回溯
-
-## 🚀 部署指南
-
-### 环境变量配置
-```env
-DATABASE_URL="file:./dev.db"
-JWT_SECRET="your-secret-key"
-NODE_ENV="production"
-```
-
-### Docker部署
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-RUN npm run build
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
-## 🤝 贡献指南
-
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## 🙏 致谢
-
-感谢所有为这个项目做出贡献的开发者和用户。
+Thanks to all developers and users who have contributed to this project.
 
 ---
 
-Built with ❤️ for 提升职场办公效率 🚀
+Built with ❤️ using Next.js, TypeScript, Tailwind CSS, and modern web technologies.
